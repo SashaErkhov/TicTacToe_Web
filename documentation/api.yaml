@@ -1,0 +1,228 @@
+openapi: 3.0.3
+info:
+  title: TicTacToe_Web API
+  version: 1.0.0
+
+servers:
+  - url: https://localhost:8000/api
+    description: dev
+  - url: https://prod.ru/api/
+    description: prod
+
+paths:
+  /auth/login:
+    post:
+      summary: Login user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Successful login
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid credentials
+
+  /auth/register:
+    post:
+      summary: Register user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User created
+        '409':
+          description: User with this email already exists
+
+  /games:
+    post:
+      summary: Create a new game
+      security:
+        - BearerAuth: []
+      responses:
+        '201':
+          description: Game created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Game'
+
+    get:
+      summary: Get list of accessible games
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of games
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Game'
+
+  /games/{gameId}:
+    get:
+      summary: Get game state
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/GameId'
+      responses:
+        '200':
+          description: Game state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Game'
+
+  /games/{gameId}/join:
+    post:
+      summary: Join a game as second player
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/GameId'
+      responses:
+        '200':
+          description: Successfully joined
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Game'
+        '409':
+          description: Game already full
+
+  /games/{gameId}/move:
+    post:
+      summary: Make a move
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/GameId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoveRequest'
+      responses:
+        '200':
+          description: Move applied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Game'
+        '400':
+          description: Invalid move
+        '403':
+          description: Not your turn
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    GameId:
+      name: gameId
+      in: path
+      required: true
+      schema:
+        type: string
+
+  schemas:
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    RegisterRequest:
+      type: object
+      required: [email, password, username]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+        username:
+          type: string
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: '#/components/schemas/User'
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        username:
+          type: string
+
+    Game:
+      type: object
+      properties:
+        id:
+          type: string
+        playerX:
+          $ref: '#/components/schemas/User'
+          nullable: true
+        playerO:
+          $ref: '#/components/schemas/User'
+          nullable: true
+        board:
+          type: array
+          description: 3×3 matrix
+          items:
+            type: array
+            items:
+              type: string
+              enum: [X, O, ""]
+        nextTurn:
+          type: string
+          enum: [X, O]
+        result:
+          type: string
+          enum: [WinX, WinO, Draw, Nothing]
+        createdAt:
+          type: string
+          format: date-time
+
+    MoveRequest:
+      type: object
+      required: [x, y]
+      properties:
+        x:
+          type: integer
+          minimum: 0
+          maximum: 2
+        y:
+          type: integer
+          minimum: 0
+          maximum: 2
