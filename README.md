@@ -1,2 +1,2 @@
 # TicTacToe_Web
-Online game with authorization and database
+## Тз представленно в файле documentation/ISSpecs.md
