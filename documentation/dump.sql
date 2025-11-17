@@ -6,8 +6,9 @@ CREATE TYPE ox AS ENUM (
 CREATE TYPE res_game AS ENUM (
 	'WinX',
 	'WinY',
-	'Nothing',
-	'Draw'
+	'Actual',
+	'Draw',
+    'Freeze'
 );
 
 
@@ -28,10 +29,10 @@ CREATE TABLE IF NOT EXISTS moves (
 	coordinates POS NOT NULL,
 	game BIGINT NOT NULL,
 	date TIMESTAMPTZ NOT NULL,
-	PRIMARY KEY(id),
+	PRIMARY KEY(id)
 
-	CONSTRAINT moves_pos_x_range CHECK ((coordinates).x BETWEEN 0 AND 2),
-    CONSTRAINT moves_pos_y_range CHECK ((coordinates).y BETWEEN 0 AND 2)
+-- 	CONSTRAINT moves_pos_x_range CHECK ((coordinates).x BETWEEN 0 AND 2),
+--     CONSTRAINT moves_pos_y_range CHECK ((coordinates).y BETWEEN 0 AND 2)
 );
 
 CREATE UNIQUE INDEX moves_unique_cell_per_game
@@ -42,11 +43,11 @@ CREATE TABLE IF NOT EXISTS games (
 	f_gamer LOGIN,
 	s_gamer LOGIN,
 	f_OX OX NOT NULL,
-	s_OX OX NOT NULL,
 	result res_game NOT NULL,
+    dimensions INTEGER NOT NULL DEFAULT 3,
 	PRIMARY KEY(id),
 
-	CONSTRAINT games_ox_diff CHECK (f_OX <> s_OX),
+    CONSTRAINT games-dimensions CHECK (dimensions > 0 AND dimensions < 10),
 	CONSTRAINT games_distinct_players CHECK (f_gamer IS NULL OR s_gamer IS NULL OR f_gamer <> s_gamer)
 );
 
