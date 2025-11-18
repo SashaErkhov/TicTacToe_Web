@@ -3,6 +3,11 @@ CREATE TYPE ox AS ENUM (
 	'O'
 );
 
+CREATE TYPE game_mode AS ENUM (
+    'Fixed',
+    'Infinity'
+);
+
 CREATE TYPE res_game AS ENUM (
 	'WinX',
 	'WinY',
@@ -42,9 +47,10 @@ CREATE TABLE IF NOT EXISTS games (
 	f_OX OX NOT NULL,
 	result res_game NOT NULL,
     dimensions INTEGER NOT NULL DEFAULT 3,
+    mode game_mode NOT NULL DEFAULT 'Fixed',
 	PRIMARY KEY(id),
 
-    CONSTRAINT games_dimensions CHECK (dimensions > 0 AND dimensions < 10),
+    CONSTRAINT games_dimensions CHECK (dimensions > 0),
 	CONSTRAINT games_distinct_players CHECK (f_gamer IS NULL OR s_gamer IS NULL OR f_gamer <> s_gamer)
 );
 
