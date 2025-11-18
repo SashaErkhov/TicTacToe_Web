@@ -30,9 +30,6 @@ CREATE TABLE IF NOT EXISTS moves (
 	game BIGINT NOT NULL,
 	date TIMESTAMPTZ NOT NULL,
 	PRIMARY KEY(id)
-
--- 	CONSTRAINT moves_pos_x_range CHECK ((coordinates).x BETWEEN 0 AND 2),
---     CONSTRAINT moves_pos_y_range CHECK ((coordinates).y BETWEEN 0 AND 2)
 );
 
 CREATE UNIQUE INDEX moves_unique_cell_per_game
@@ -47,7 +44,7 @@ CREATE TABLE IF NOT EXISTS games (
     dimensions INTEGER NOT NULL DEFAULT 3,
 	PRIMARY KEY(id),
 
-    CONSTRAINT games-dimensions CHECK (dimensions > 0 AND dimensions < 10),
+    CONSTRAINT games_dimensions CHECK (dimensions > 0 AND dimensions < 10),
 	CONSTRAINT games_distinct_players CHECK (f_gamer IS NULL OR s_gamer IS NULL OR f_gamer <> s_gamer)
 );
 
