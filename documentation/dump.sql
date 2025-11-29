@@ -1,3 +1,8 @@
+CREATE TYPE type_game AS ENUM (
+    'Online',
+    'Hotseat'
+)
+
 CREATE TYPE ox AS ENUM (
 	'X',
 	'O'
@@ -48,6 +53,7 @@ CREATE TABLE IF NOT EXISTS games (
 	result res_game NOT NULL,
     dimensions INTEGER NOT NULL DEFAULT 3,
     mode game_mode NOT NULL DEFAULT 'Fixed',
+    type type_game NOT NULL DEFAULT 'Online',
 	PRIMARY KEY(id),
 
     CONSTRAINT games_dimensions CHECK (dimensions > 0),
