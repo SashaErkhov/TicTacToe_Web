@@ -2,8 +2,9 @@
 @import "tailwindcss";
 
 .main-page {
-    @apply w-full h-full p-0 m-0 font-sans;
+    @apply w-full h-full p-0 m-0 font-sans flex min-h-screen items-center justify-center;
     font-family: 'Comfortaa', sans-serif;
+    background-color: #364153;
 }
 
 .spbu {
