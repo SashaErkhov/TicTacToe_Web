@@ -1,228 +1,850 @@
-openapi: 3.0.3
+openapi: 3.2.0
 info:
-  title: TicTacToe_Web API
+  title: TicTacToe_Web REST API
+  description: REST API for a Tic-Tac-Toe game
   version: 1.0.0
+  license:
+    name: MIT License
+    url: https://opensource.org/licenses/MIT
+
+
 
 servers:
-  - url: https://localhost:8000/api
-    description: dev
-  - url: https://prod.ru/api/
-    description: prod
+  - name: Dev
+    url: http://localhost:8000/api
+    description: Local development server
+  - name: prod
+    url: http://176.108.250.40
+    description: Production server
+
+
+
+tags:
+  - name: Auth
+    description: User registration and authentication.
+  - name: Users
+    description: User profile and personal data.
+  - name: Matches
+    description: Match lifecycle and state.
+  - name: Moves
+    description: Moves within a match.
+  - name: Matchmaking
+    description: Matchmaking queue and hotseat mode.
+  - name: Stats
+    description: Statistics and leaderboard.
+
+
+
+security:
+  - BearerAuth: []
+
+
 
 paths:
-  /auth/login:
-    post:
-      summary: Login user
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/LoginRequest'
-      responses:
-        '200':
-          description: Successful login
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AuthResponse'
-        '401':
-          description: Invalid credentials
 
   /auth/register:
     post:
-      summary: Register user
+      security: []
+      tags: [Auth]
+      summary: Register a new user
+      description: Creates a new user account in the system.
+      operationId: registerUser
       requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RegisterRequest'
+        $ref: '#/components/requestBodies/RegisterRequestBody'
       responses:
         '201':
-          description: User created
-        '409':
-          description: User with this email already exists
-
-  /games:
-    post:
-      summary: Create a new game
-      security:
-        - BearerAuth: []
-      responses:
-        '201':
-          description: Game created
+          description: User successfully created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Game'
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
 
-    get:
-      summary: Get list of accessible games
-      security:
-        - BearerAuth: []
+
+  /auth/login:
+    post:
+      security: []
+      tags: [Auth]
+      summary: User authentication and token issuance
+      description: Authenticates a user and returns a JWT access token.
+      operationId: loginUser
+      requestBody:
+        $ref: '#/components/requestBodies/LoginRequestBody'
       responses:
         '200':
-          description: List of games
+          description: Successful authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthToken'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout and invalidate the current session
+      description: Terminates the active session and invalidates the access token.
+      operationId: logoutUser
+      responses:
+        '204':
+          description: Successfully logged out
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+
+
+
+  /users/me:
+    get:
+      tags: [Users]
+      summary: Get profile of the authenticated user
+      description: Returns the profile information of the currently authenticated user.
+      operationId: getCurrentUser
+      responses:
+        '200':
+          description: User profile returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+    patch:
+      tags: [Users]
+      summary: Update the authenticated user's profile
+      description: Updates the profile details of the authenticated user.
+      operationId: updateCurrentUser
+      requestBody:
+        $ref: '#/components/requestBodies/UpdateUserRequestBody'
+      responses:
+        '200':
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+
+  /users/me/matches:
+    get:
+      tags: [Users, Matches]
+      summary: Get match history of the authenticated user
+      description: Returns the list of matches played by the authenticated user with filtering options.
+      operationId: getUserMatches
+      parameters:
+        - name: mode
+          in: query
+          description: Filter by match mode.
+          required: false
+          schema:
+            type: string
+            enum: [fixed, infinite]
+        - name: result
+          in: query
+          description: Filter by match result.
+          required: false
+          schema:
+            type: string
+            enum: [win, loss, draw]
+        - name: from
+          in: query
+          description: Filter matches played from this date (inclusive).
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          description: Filter matches played up to this date (inclusive).
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: limit
+          in: query
+          description: Maximum number of matches to return.
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Match history returned
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Game'
+                  $ref: '#/components/schemas/MatchSummary'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
 
-  /games/{gameId}:
+
+  /users/me/stats:
     get:
-      summary: Get game state
-      security:
-        - BearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/GameId'
+      tags: [Users, Stats]
+      summary: Get aggregated statistics of the authenticated user
+      description: Returns aggregated performance statistics (wins, losses, draws, rating).
+      operationId: getUserStats
       responses:
         '200':
-          description: Game state
+          description: User statistics returned
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Game'
+                $ref: '#/components/schemas/UserStats'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
 
-  /games/{gameId}/join:
-    post:
-      summary: Join a game as second player
-      security:
-        - BearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/GameId'
+
+
+
+  /leaderboard:
+    get:
+      tags: [Stats]
+      summary: Get global leaderboard
+      description: Returns a ranked list of players sorted by skill level.
+      operationId: getLeaderboard
       responses:
         '200':
-          description: Successfully joined
+          description: Leaderboard returned
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Game'
-        '409':
-          description: Game already full
+                type: array
+                items:
+                  $ref: '#/components/schemas/LeaderboardEntry'
 
-  /games/{gameId}/move:
+
+
+
+  /matches/{matchId}:
+    get:
+      tags: [Matches]
+      summary: Get match state
+      description: Returns the current state of the match by its identifier.
+      operationId: getMatchById
+      parameters:
+        - $ref: '#/components/parameters/MatchId'
+      responses:
+        '200':
+          description: Match data returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Match'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+
+  /matches/{matchId}/moves:
     post:
+      tags: [Matches, Moves]
       summary: Make a move
-      security:
-        - BearerAuth: []
+      description: Submits a new move within the specified match and returns updated match state.
+      operationId: makeMove
       parameters:
-        - $ref: '#/components/parameters/GameId'
+        - $ref: '#/components/parameters/MatchId'
       requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/MoveRequest'
+        $ref: '#/components/requestBodies/MoveRequestBody'
       responses:
         '200':
-          description: Move applied
+          description: Move successfully processed
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Game'
+                $ref: '#/components/schemas/Match'
         '400':
-          description: Invalid move
-        '403':
-          description: Not your turn
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+    get:
+      tags: [Matches, Moves]
+      summary: Get match move history
+      description: Returns the full sequence of moves for the specified match.
+      operationId: getMatchMoves
+      parameters:
+        - $ref: '#/components/parameters/MatchId'
+      responses:
+        '200':
+          description: Move history returned
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Move'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+
+  /matches/{matchId}/pause:
+    post:
+      tags: [Matches]
+      summary: Pause a match
+      description: Sets the match status to paused.
+      operationId: pauseMatch
+      parameters:
+        - $ref: '#/components/parameters/MatchId'
+      responses:
+        '200':
+          description: Match paused
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Match'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+
+  /matches/{matchId}/resume:
+    post:
+      tags: [Matches]
+      summary: Resume a paused match
+      description: Restores a previously paused match to active state.
+      operationId: resumeMatch
+      parameters:
+        - $ref: '#/components/parameters/MatchId'
+      responses:
+        '200':
+          description: Match resumed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Match'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+
+  /matches/{matchId}/resign:
+    post:
+      tags: [Matches]
+      summary: Resign from a match
+      description: The current player resigns and the match is immediately ended.
+      operationId: resignMatch
+      parameters:
+        - $ref: '#/components/parameters/MatchId'
+      responses:
+        '200':
+          description: Match ended due to resignation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Match'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+
+
+
+  /matchmaking/join:
+    post:
+      tags: [Matchmaking]
+      summary: Join matchmaking queue
+      description: Adds the user to the matchmaking queue based on selected mode and settings.
+      operationId: joinMatchmaking
+      requestBody:
+        $ref: '#/components/requestBodies/JoinMatchmakingRequestBody'
+      responses:
+        '200':
+          description: Matchmaking search started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MatchmakingStatus'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+
+  /matchmaking/leave:
+    delete:
+      tags: [Matchmaking]
+      summary: Leave matchmaking queue
+      description: Removes the user from the matchmaking queue.
+      operationId: leaveMatchmaking
+      responses:
+        '204':
+          description: Matchmaking search canceled
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+
+  /matchmaking/status:
+    get:
+      tags: [Matchmaking]
+      summary: Get matchmaking search status
+      description: Returns the current matchmaking state (searching, match found, or idle).
+      operationId: getMatchmakingStatus
+      responses:
+        '200':
+          description: Matchmaking status returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MatchmakingStatus'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+
+  /matchmaking/hotseat:
+    post:
+      tags: [Matchmaking]
+      summary: Create a hotseat match
+      description: Creates a local match where both players play on the same device.
+      operationId: createHotseatMatch
+      requestBody:
+        $ref: '#/components/requestBodies/HotseatMatchRequestBody'
+      responses:
+        '201':
+          description: Hotseat match created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Match'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+
+
 
 components:
+
   securitySchemes:
     BearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
 
+
+
+
   parameters:
-    GameId:
-      name: gameId
+    MatchId:
+      name: matchId
       in: path
       required: true
+      description: Match identifier.
       schema:
-        type: string
+        type: integer
+        format: int64
+
+
+
+
+  requestBodies:
+    RegisterRequestBody:
+      description: Registration data for a new user.
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RegisterRequest'
+
+
+    LoginRequestBody:
+      description: Credentials for user authentication.
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/LoginRequest'
+
+
+    UpdateUserRequestBody:
+      description: Fields to update in the current user profile.
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/UpdateUserRequest'
+
+
+    MoveRequestBody:
+      description: New move coordinates for the given match.
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/MoveRequest'
+
+
+    JoinMatchmakingRequestBody:
+      description: Settings for joining the matchmaking queue.
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/JoinMatchmakingRequest'
+
+
+    HotseatMatchRequestBody:
+      description: Settings for creating a hotseat match.
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HotseatMatchRequest'
+
+
+
+
+  responses:
+    UnauthorizedError:
+      description: Unauthorized – authentication required or token invalid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFoundError:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ValidationError:
+      description: The request is invalid or fails validation rules.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ConflictError:
+      description: The request conflicts with the current state (e.g. duplicate login or invalid game state).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+
+
 
   schemas:
-    LoginRequest:
-      type: object
-      required: [email, password]
-      properties:
-        email:
-          type: string
-          format: email
-        password:
-          type: string
 
-    RegisterRequest:
+    ErrorResponse:
       type: object
-      required: [email, password, username]
       properties:
-        email:
-          type: string
-          format: email
-        password:
-          type: string
-        username:
-          type: string
+        error:
+          type: object
+          properties:
+            code:
+              type: integer
+              format: int32
+              description: Application-specific error code.
+            message:
+              type: string
+              description: Human-readable error message.
+          required: [code, message]
+      required: [error]
 
-    AuthResponse:
-      type: object
-      properties:
-        token:
-          type: string
-        user:
-          $ref: '#/components/schemas/User'
 
     User:
       type: object
       properties:
         id:
+          type: integer
+          format: int64
+        login:
           type: string
-        email:
-          type: string
-          format: email
-        username:
-          type: string
-
-    Game:
-      type: object
-      properties:
-        id:
-          type: string
-        playerX:
-          $ref: '#/components/schemas/User'
-          nullable: true
-        playerO:
-          $ref: '#/components/schemas/User'
-          nullable: true
-        board:
-          type: array
-          description: 3×3 matrix
-          items:
-            type: array
-            items:
-              type: string
-              enum: [X, O, ""]
-        nextTurn:
-          type: string
-          enum: [X, O]
-        result:
-          type: string
-          enum: [WinX, WinO, Draw, Nothing]
+          minLength: 3
+          maxLength: 32
+        level:
+          type: integer
+          format: int32
+          minimum: 0
         createdAt:
           type: string
           format: date-time
+      required: [id, login, level, createdAt]
+
+
+    RegisterRequest:
+      type: object
+      properties:
+        login:
+          type: string
+          minLength: 3
+          maxLength: 32
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+      required: [login, password]
+
+
+    LoginRequest:
+      type: object
+      properties:
+        login:
+          type: string
+        password:
+          type: string
+      required: [login, password]
+
+
+    AuthToken:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          description: JWT access token.
+        tokenType:
+          type: string
+          description: Token type, usually "Bearer".
+          default: Bearer
+        expiresIn:
+          type: integer
+          format: int64
+          description: Access token lifetime in seconds.
+      required: [accessToken, tokenType]
+
+
+    UpdateUserRequest:
+      type: object
+      description: At least one field must be provided.
+      properties:
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+
+
+    Match:
+      type: object
+      description: Full state of a Tic-Tac-Toe match.
+      properties:
+        id:
+          type: integer
+          format: int64
+        firstPlayerId:
+          type: [integer, "null"]
+          format: int64
+        secondPlayerId:
+          type: [integer, "null"]
+          format: int64
+        currentPlayerId:
+          type: [integer, "null"]
+          format: int64
+        firstPlayerSymbol:
+          type: string
+          enum: [X, O]
+        dimensions:
+          type: integer
+          minimum: 3
+          description: Board dimension (N for an N×N board).
+        mode:
+          type: string
+          enum: [fixed, infinite]
+          description: Match mode – fixed-size board or infinite/expanding board.
+        status:
+          type: string
+          enum: [waiting, in_progress, paused, finished]
+        result:
+          type: [string, "null"]
+          enum: [first_win, second_win, draw, null]
+          description: Final match result, null if not finished.
+        board:
+          type: array
+          description: >
+            Current board state represented as a 2D array board[row][column].
+            Each cell is either "X", "O" or null.
+          items:
+            type: array
+            items:
+              type: [string, "null"]
+      required: [id, dimensions, mode, status]
+
+
+    MatchSummary:
+      type: object
+      description: Short information about a user's match in history.
+      properties:
+        id:
+          type: integer
+          format: int64
+        opponentLogin:
+          type: [string, "null"]
+        mode:
+          type: string
+          enum: [fixed, infinite]
+        dimensions:
+          type: integer
+          minimum: 1
+        result:
+          type: string
+          enum: [win, loss, draw]
+        startedAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: [string, "null"]
+          format: date-time
+      required: [id, mode, dimensions, result, startedAt]
+
 
     MoveRequest:
       type: object
-      required: [x, y]
+      description: Coordinates of a new move.
       properties:
         x:
           type: integer
           minimum: 0
-          maximum: 2
         y:
           type: integer
           minimum: 0
-          maximum: 2
+      required: [x, y]
+
+
+    Move:
+      type: object
+      description: A single move in a match.
+      properties:
+        index:
+          type: integer
+          format: int32
+          description: Sequential move number starting from 1.
+        matchId:
+          type: integer
+          format: int64
+        playerId:
+          type: integer
+          format: int64
+        symbol:
+          type: string
+          enum: [X, O]
+        x:
+          type: integer
+        y:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required: [index, matchId, playerId, symbol, x, y, createdAt]
+
+
+    UserStats:
+      type: object
+      description: Aggregated statistics for a single user.
+      properties:
+        totalMatches:
+          type: integer
+          format: int32
+        wins:
+          type: integer
+          format: int32
+        losses:
+          type: integer
+          format: int32
+        draws:
+          type: integer
+          format: int32
+        winRate:
+          type: number
+          format: float
+          description: Win rate in range [0, 1].
+        level:
+          type: integer
+          format: int32
+      required: [totalMatches, wins, losses, draws, winRate, level]
+
+
+    LeaderboardEntry:
+      type: object
+      description: Single row in the global leaderboard.
+      properties:
+        rank:
+          type: integer
+          format: int32
+        userId:
+          type: integer
+          format: int64
+        login:
+          type: string
+        level:
+          type: integer
+          format: int32
+        wins:
+          type: integer
+          format: int32
+        losses:
+          type: integer
+          format: int32
+        draws:
+          type: integer
+          format: int32
+      required: [rank, userId, login, level]
+
+
+    MatchmakingStatus:
+      type: object
+      description: Current matchmaking state for the authenticated user.
+      properties:
+        status:
+          type: string
+          enum: [idle, searching, match_found]
+        matchId:
+          type: [integer, "null"]
+          format: int64
+          description: Present when a match has been found.
+      required: [status]
+
+
+    JoinMatchmakingRequest:
+      type: object
+      description: Settings used when entering matchmaking.
+      properties:
+        mode:
+          type: string
+          enum: [fixed, infinite]
+          default: fixed
+        dimensions:
+          type: integer
+          minimum: 3
+          default: 3
+      required: [mode, dimensions]
+
+
+    HotseatMatchRequest:
+      type: object
+      description: Settings for creating a hotseat (local) match.
+      properties:
+        dimensions:
+          type: integer
+          minimum: 3
+          default: 3
+        mode:
+          type: string
+          enum: [fixed, infinite]
+          default: fixed
+      required: [dimensions, mode]
+
+
+
+
