@@ -14,7 +14,7 @@ servers:
     url: http://localhost:8000/api
     description: Local development server
   - name: prod
-    url: http://176.108.250.40
+    url: http://176.108.250.40:80/api
     description: Production server
 
 
