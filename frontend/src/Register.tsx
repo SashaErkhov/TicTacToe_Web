@@ -3,9 +3,9 @@ import { useEffect, useState } from "react";
 import { BACKEND_URL } from './config.ts';
 
 function Register() {
-    const [login, setLogin] = useState<string | undefined>(undefined);
-    const [pswd, setPswd] = useState<string | undefined>(undefined);
-    const [confirmPswd, setConfirmPswd] = useState<string | undefined>(undefined);
+    const [login, setLogin] = useState<string>("");
+    const [pswd, setPswd] = useState<string>("");
+    const [confirmPswd, setConfirmPswd] = useState<string>("");
     const [chng, setChng] = useState<boolean | undefined>(undefined);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | undefined>(undefined);
@@ -26,6 +26,7 @@ function Register() {
 
         fetch(`${BACKEND_URL}/auth/register`, {
             method: 'POST',
+            credentials: "include",
             headers: {
                 'Content-Type': 'application/json',
             },
@@ -36,17 +37,17 @@ function Register() {
         })
             .then(response => {
                 if (response.ok) {
-                    navigate('/login');
                     setError(undefined);
-                    console.debug("Успешная регистрация")
+                    console.debug("Success post /auth/register")
+                    navigate('/new');
                 } else {
                     setError('Ошибка при регистрации');
-                    console.error('Ошибка:', response.statusText)
+                    console.error('Error post /auth/register:', response.statusText)
                 }
             })
             .catch(error => {
                 setError('Ошибка соединения с сервером');
-                console.error('Ошибка:', error);
+                console.error('Error post /auth/register:', error);
             })
             .finally(() => {
                 setIsLoading(false);

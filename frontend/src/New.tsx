@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 function New() {
     return (
         <div className="main-page">
@@ -5,9 +7,10 @@ function New() {
 
                 {/* Верхняя панель */}
                 <div className="w-full flex justify-end gap-5">
-                    <button className="bg-[#D9D8D8] hover:bg-[#bdbcbc] text-sm px-3 py-1 rounded-md">
+                    <Link className="bg-[#D9D8D8] hover:bg-[#bdbcbc] text-sm px-3 py-1 rounded-md"
+                    to="/profile">
                         Профиль
-                    </button>
+                    </Link>
                     <button className="bg-[#D9D8D8] hover:bg-[#bdbcbc] text-sm px-3 py-1 rounded-md">
                         Лидеры
                     </button>

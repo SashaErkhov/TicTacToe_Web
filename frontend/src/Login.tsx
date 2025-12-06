@@ -3,8 +3,8 @@ import { useEffect, useState } from "react";
 import { BACKEND_URL } from './config.ts';
 
 function Login() {
-    const [login, setLogin] = useState<string | undefined>(undefined);
-    const [pswd, setPswd] = useState<string | undefined>(undefined);
+    const [login, setLogin] = useState<string>("");
+    const [pswd, setPswd] = useState<string>("");
     const [chng, setChng] = useState<boolean | undefined>(undefined);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | undefined>(undefined);
@@ -19,6 +19,7 @@ function Login() {
             headers: {
                 'Content-Type': 'application/json',
             },
+            credentials: "include",
             body: JSON.stringify({
                 login: login,
                 password: pswd
@@ -26,17 +27,17 @@ function Login() {
         })
         .then(response => {
             if (response.ok) {
-                navigate('/');
                 setError(undefined);
-                console.debug("Успешный вход")
+                console.debug("Success post /auth/login")
+                navigate('/new');
             } else {
                 setError('Неверный логин или пароль');
-                console.error('Ошибка:', response.statusText)
+                console.error('Error post /auth/login:', response.statusText)
             }
         })
         .catch(error => {
             setError('Ошибка соединения с сервером');
-            console.error('Ошибка:', error);
+            console.error('Error post /auth/login:', error);
         })
         .finally(() => {
             setIsLoading(false);
