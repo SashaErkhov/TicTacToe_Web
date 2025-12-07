@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from "react";
-import { BACKEND_URL } from './config.ts';
+import { BACKEND_URL } from './../config.ts';
 
 function Login() {
     const [login, setLogin] = useState<string>("");

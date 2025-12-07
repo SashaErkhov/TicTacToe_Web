@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from "react";
-import { BACKEND_URL } from './config.ts';
+import { BACKEND_URL } from './../config.ts';
 
 function Register() {
     const [login, setLogin] = useState<string>("");
@@ -39,7 +39,7 @@ function Register() {
                 if (response.ok) {
                     setError(undefined);
                     console.debug("Success post /auth/register")
-                    navigate('/new');
+                    navigate('/login');
                 } else {
                     setError('Ошибка при регистрации');
                     console.error('Error post /auth/register:', response.statusText)

@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import {useEffect, useState} from "react";
-import {BACKEND_URL} from "./config.ts"; [BACKEND_URL]
+import {BACKEND_URL} from "./../config.ts";
+import { checkCookies } from "./../foos.ts";
 
 function Profile() {
     const navigate = useNavigate();
@@ -23,6 +24,15 @@ function Profile() {
     const [data, setData] = useState<any>(undefined)
     const [login, setLogin] = useState<string>("");
     const [level, setLevel] = useState<number>(0);
+
+    useEffect(() => {
+        try {
+            checkCookies();
+        } catch {
+            setError("Ошибка авторизации")
+            console.error("Error auth");
+        }
+    }, []);
 
     useEffect(() => {
         setIsLoading(true);

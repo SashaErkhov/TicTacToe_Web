@@ -1,6 +1,13 @@
 import { Link } from "react-router-dom";
+import {useEffect} from "react";
+import {checkCookies} from "../foos.ts";
 
 function New() {
+
+    useEffect(() => {
+        checkCookies();
+    }, []);
+
     return (
         <div className="main-page">
             <div className="w-md h-md rounded-md bg-white shadow-lg flex flex-col gap-5 py-5 px-5">
