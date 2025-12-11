@@ -99,29 +99,74 @@ def get_user_matches(
     return [
         MatchSummary(
             id=1,
-            opponentLogin="opponent1",
+            opponentLogin="Петя",
             mode="fixed",
             dimensions=3,
             result="win",
-            startedAt=1735665600,
-            finishedAt=1735665900
+            startedAt=1765464116718 ,
+            finishedAt=1765464116718
         ),
         MatchSummary(
             id=2,
-            opponentLogin="opponent2",
+            opponentLogin="Вася",
             mode="infinite",
             dimensions=4,
             result="loss",
-            startedAt=1735766400,
-            finishedAt=1735766880
+            startedAt=1765464116718 ,
+            finishedAt=1765464116718
         ),
         MatchSummary(
             id=3,
-            opponentLogin="opponent3",
+            opponentLogin="Коля",
             mode="fixed",
             dimensions=3,
             result="draw",
-            startedAt=1735861500,
-            finishedAt=1735861800
+            startedAt=1765464116718 ,
+            finishedAt=1765464116718
+        ),
+        MatchSummary(
+            id=4,
+            opponentLogin="Игнат",
+            mode="fixed",
+            dimensions=3,
+            result="frozen",
+            startedAt=1765464116718 ,
+            finishedAt=1765464116718
+        ),
+        MatchSummary(
+            id=5,
+            opponentLogin="Петя",
+            mode="fixed",
+            dimensions=3,
+            result="win",
+            startedAt=1765464116718,
+            finishedAt=1765464116718
+        ),
+        MatchSummary(
+            id=6,
+            opponentLogin="Вася",
+            mode="infinite",
+            dimensions=4,
+            result="loss",
+            startedAt=1765464116718,
+            finishedAt=1765464116718
+        ),
+        MatchSummary(
+            id=7,
+            opponentLogin="Коля",
+            mode="fixed",
+            dimensions=3,
+            result="draw",
+            startedAt=1765464116718,
+            finishedAt=1765464116718
+        ),
+        MatchSummary(
+            id=8,
+            opponentLogin="Игнат",
+            mode="fixed",
+            dimensions=3,
+            result="frozen",
+            startedAt=1765464116718,
+            finishedAt=1765464116718
         )
     ]
