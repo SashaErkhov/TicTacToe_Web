@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from database import engine, Base
-from schemas import RegisterRequest, LoginRequest, UpdateUserRequest, User as UserSchema, UserStats, MatchSummary
+from schemas import RegisterRequest, LoginRequest, UpdateUserRequest, User as UserSchema, UserStats, MatchSummary, LeaderboardEntry
 from auth import (
     register_user,
     login_user,
@@ -168,5 +168,57 @@ def get_user_matches(
             result="frozen",
             startedAt=1765464116718,
             finishedAt=1765464116718
+        )
+    ]
+
+
+@app.get("/leaderboard", response_model=list[LeaderboardEntry])
+def get_leaderboard():
+    # Заглушка: возвращаем фиксированные данные для таблицы лидеров
+    return [
+        LeaderboardEntry(
+            rank=1,
+            userId=1,
+            login="Alice",
+            level=50,
+            wins=45,
+            losses=5,
+            draws=2
+        ),
+        LeaderboardEntry(
+            rank=2,
+            userId=2,
+            login="Bob",
+            level=48,
+            wins=40,
+            losses=8,
+            draws=4
+        ),
+        LeaderboardEntry(
+            rank=3,
+            userId=3,
+            login="Charlie",
+            level=45,
+            wins=38,
+            losses=10,
+            draws=3
+        ),
+        LeaderboardEntry(
+            rank=4,
+            userId=4,
+            login="Diana",
+            level=42,
+            wins=35,
+            losses=12,
+            draws=5
+        ),
+        LeaderboardEntry(
+            rank=5,
+            userId=5,
+            login="Eve",
+            level=40,
+            wins=30,
+            losses=15,
+            draws=7
         )
     ]

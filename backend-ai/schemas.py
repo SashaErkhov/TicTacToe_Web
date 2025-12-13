@@ -1,6 +1,16 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
 
+class LeaderboardEntry(BaseModel):
+    rank: int
+    userId: int
+    login: str
+    level: int
+    wins: int
+    losses: int
+    draws: int
+
+
 # ─────────── Request DTO ───────────
 
 class RegisterRequest(BaseModel):
