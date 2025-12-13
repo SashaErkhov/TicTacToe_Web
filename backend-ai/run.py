@@ -5,6 +5,6 @@ if __name__ == "__main__":
         "main:app",
         host="0.0.0.0",
         port=8000,
-        reload=True,        # можно выключить в проде
+        reload=False, # False for production True for development
         workers=1
     )

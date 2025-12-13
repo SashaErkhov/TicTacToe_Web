@@ -89,7 +89,7 @@ def login_user(data, response: Response, db: Session):
         key="accessToken",
         value=token,
         httponly=True,
-        secure=False,          # включи True в проде
+        secure=True, # True for production False for dev
         samesite="lax",
         max_age=TOKEN_EXPIRE_SECONDS
     )

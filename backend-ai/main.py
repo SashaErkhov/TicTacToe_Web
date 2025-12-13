@@ -43,7 +43,7 @@ def logout(response: Response):
         key="accessToken",
         httponly=True,
         path="/",
-        secure=False,  # включи True в проде
+        secure=True,  # True - prod # False - dev
         samesite="lax"
     )
     response.headers["Clear-Site-Data"] = '"cookies", "storage"'
