@@ -54,7 +54,7 @@ function Profile() {
         try {
             checkCookies();
         } catch {
-            setError("Ошибка авторизации")
+            setError("Ошибка авторизации");
             console.error("Error auth");
         }
     }, []);

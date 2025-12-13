@@ -18,9 +18,10 @@ function New() {
                     to="/profile">
                         Профиль
                     </Link>
-                    <button className="bg-[#D9D8D8] hover:bg-[#bdbcbc] text-sm px-3 py-1 rounded-md">
+                    <Link className="bg-[#D9D8D8] hover:bg-[#bdbcbc] text-sm px-3 py-1 rounded-md"
+                    to="/leaders">
                         Лидеры
-                    </button>
+                    </Link>
                 </div>
 
                 {/* Заголовок */}
