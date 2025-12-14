@@ -21,13 +21,13 @@ function Profile() {
         }
     };
 
-    enum Sort {
-        id=0,
-        opponent=1,
-        dimension=2,
-        date=3,
-        none=4,
-    }
+    const Sort = {
+        id: 0,
+        opponent: 1,
+        dimension: 2,
+        date: 3,
+        none: 4,
+    } as const;
 
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [error, setError] = useState<string>("");
@@ -46,7 +46,7 @@ function Profile() {
     const [reload, setReload] = useState<boolean>(true);
     const [filterOpen, setFilterOpen] = useState<boolean>(false);
     const [sortOpen, setSortOpen] = useState<boolean>(false);
-    const [sort, setSort] = useState<Sort>(Sort.none);
+    const [sort, setSort] = useState<number>(Sort.none);
 
 
 
@@ -137,7 +137,7 @@ function Profile() {
         setError("");
 
         const filtered = Object.fromEntries(
-            Object.entries(params).filter(([_, v]) => v)
+            Object.entries(params).filter(([_, v]) => v).map(([k, v]) => [k, String(v)])
         );
 
         const query = new URLSearchParams(filtered).toString();
