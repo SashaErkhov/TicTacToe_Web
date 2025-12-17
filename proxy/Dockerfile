@@ -7,13 +7,7 @@ RUN rm /etc/nginx/conf.d/default.conf \
 
 COPY nginx.conf /etc/nginx/nginx.conf
 
-RUN mkdir -p /var/cache/nginx/client_temp \
-         /var/cache/nginx/proxy_temp \
-         /var/cache/nginx/fastcgi_temp \
-         /var/cache/nginx/uwsgi_temp \
-         /var/cache/nginx/scgi_temp \
-    && chown -R app:app /var/cache/nginx /var/run /etc/nginx \
-    && chmod -R 755 /var/cache/nginx /var/run
+RUN chown -R app:app /usr/share/nginx/html /var/cache/nginx /var/run /run
 
 USER app
 

@@ -38,11 +38,11 @@ function Register() {
             .then(response => {
                 if (response.ok) {
                     setError(undefined);
-                    console.debug("Success post /auth/register")
+                    console.debug("Success post /auth/register");
                     navigate('/login');
                 } else {
                     setError('Ошибка при регистрации');
-                    console.error('Error post /auth/register:', response.statusText)
+                    console.error('Error post /auth/register:', response.statusText);
                 }
             })
             .catch(error => {

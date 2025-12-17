@@ -18,10 +18,10 @@ function Start() {
         })
             .then(response => {
             if (response.ok) {
-                console.debug("Success post /auth/login")
+                console.debug("Success post /auth/login");
                 setGood(true);
             } else {
-                console.error('Error post /auth/login:', response.statusText)
+                console.error('Error post /auth/login:', response.statusText);
                 setGood(false);
             }
             })

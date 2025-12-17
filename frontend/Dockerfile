@@ -26,5 +26,5 @@ RUN chown -R app:app /usr/share/nginx/html /var/cache/nginx /var/run
 
 USER app
 
-EXPOSE 80
+EXPOSE 1234
 CMD ["nginx", "-g", "daemon off;"]

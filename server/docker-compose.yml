@@ -7,7 +7,7 @@ services:
       dockerfile: Dockerfile
     container_name: frontend
     expose:
-      - "80"
+      - "1234"
     networks:
       - ttt-net
 
@@ -36,13 +36,8 @@ services:
     networks:
       - ttt-net
 
-    read_only: true
     security_opt:
       - no-new-privileges:true
-    tmpfs:
-      - /tmp
-      - /var/run
-      - /var/cache/nginx
 
 networks:
   ttt-net:
