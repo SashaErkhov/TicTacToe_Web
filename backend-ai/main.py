@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from database import engine, Base
-from schemas import RegisterRequest, LoginRequest, UpdateUserRequest, User as UserSchema, UserStats, MatchSummary, LeaderboardEntry
+from schemas import RegisterRequest, LoginRequest, UpdateUserRequest, User as UserSchema, UserStats, MatchSummary, LeaderboardEntry, Match, Move
 from auth import (
     register_user,
     login_user,
@@ -220,5 +220,78 @@ def get_leaderboard():
             wins=30,
             losses=15,
             draws=7
+        )
+    ]
+
+
+@app.get("/matches/{matchId}", response_model=Match)
+def get_match_by_id(matchId: int):
+    # Заглушка: игнорируем matchId и возвращаем фиксированные данные
+    return Match(
+        id=1,
+        firstPlayerId=1,
+        secondPlayerId=2,
+        currentPlayerId=1,
+        firstPlayerSymbol="X",
+        dimensions=3,
+        mode="fixed",
+        status="in_progress",
+        result=None,
+        board=[
+            ["X", "O", "X"],
+            ["O", "X", "O"],
+            ["O", "X", "O"]
+        ]
+    )
+
+
+@app.get("/matches/{matchId}/moves", response_model=list[Move])
+def get_match_moves(matchId: int):
+    # Заглушка: игнорируем matchId и возвращаем фиксированную историю ходов
+    return [
+        Move(
+            index=1,
+            matchId=1,
+            playerId=1,
+            symbol="X",
+            x=0,
+            y=0,
+            createdAt=1765464116718
+        ),
+        Move(
+            index=2,
+            matchId=1,
+            playerId=2,
+            symbol="O",
+            x=1,
+            y=0,
+            createdAt=1765464116718
+        ),
+        Move(
+            index=3,
+            matchId=1,
+            playerId=1,
+            symbol="X",
+            x=0,
+            y=1,
+            createdAt=1765464116718
+        ),
+        Move(
+            index=4,
+            matchId=1,
+            playerId=2,
+            symbol="O",
+            x=1,
+            y=1,
+            createdAt=1765464116718
+        ),
+        Move(
+            index=5,
+            matchId=1,
+            playerId=1,
+            symbol="X",
+            x=0,
+            y=2,
+            createdAt=1765464116718
         )
     ]

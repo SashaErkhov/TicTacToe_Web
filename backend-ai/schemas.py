@@ -56,3 +56,26 @@ class User(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+class Match(BaseModel):
+    id: int
+    firstPlayerId: int | None
+    secondPlayerId: int | None
+    currentPlayerId: int | None
+    firstPlayerSymbol: str
+    dimensions: int
+    mode: str
+    status: str
+    result: str | None
+    board: list[list[str | None]]
+
+
+class Move(BaseModel):
+    index: int
+    matchId: int
+    playerId: int
+    symbol: str
+    x: int
+    y: int
+    createdAt: int

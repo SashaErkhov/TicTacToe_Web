@@ -47,6 +47,7 @@ function Profile() {
     const [filterOpen, setFilterOpen] = useState<boolean>(false);
     const [sortOpen, setSortOpen] = useState<boolean>(false);
     const [sort, setSort] = useState<number>(Sort.none);
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
 
 
@@ -159,18 +160,20 @@ function Profile() {
             .then(data => {
                 console.log('Success get /users/me/matches');
                 let copy = [...data];
+                const direction = sortDirection === 'asc' ? 1 : -1;
+                
                 switch (sort) {
                     case Sort.id:
-                        copy.sort((a, b) => b.id - a.id);
+                        copy.sort((a, b) => direction * (a.id - b.id));
                         break;
                     case Sort.opponent:
-                        copy.sort((a, b) => a.opponentLogin.localeCompare(b.opponentLogin));
+                        copy.sort((a, b) => direction * a.opponentLogin.localeCompare(b.opponentLogin));
                         break;
                     case Sort.dimension:
-                        copy.sort((a, b) => b.dimensions - a.dimensions);
+                        copy.sort((a, b) => direction * (a.dimensions - b.dimensions));
                         break;
                     case Sort.date:
-                        copy.sort((a, b) => b.startedAt - a.startedAt);
+                        copy.sort((a, b) => direction * (a.startedAt - b.startedAt));
                         break;
                 }
 
@@ -267,21 +270,60 @@ function Profile() {
                                 Сортировка
                             </button>
                             {sortOpen && (
-                                <div className="fixed right-0 bottom-0 mt-2 w-48 bg-white border border-gray-300 rounded-md shadow-lg z-10">
+                                <div className="fixed right-0 bottom-0 mt-2 w-62 bg-white border border-gray-300 rounded-md shadow-lg z-10">
                                     <div className="p-3">
                                         <div className="mb-2">
                                             <label className="block text-sm font-medium text-gray-700">Сортировать по</label>
-                                            <select 
-                                                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                                                value={sort}
-                                                onChange={(e) => setSort(parseInt(e.target.value))}
-                                            >
-                                                <option value={Sort.none}>Без сортировки</option>
-                                                <option value={Sort.id}>ID игры</option>
-                                                <option value={Sort.opponent}>Оппоненту</option>
-                                                <option value={Sort.dimension}>Размеру поля</option>
-                                                <option value={Sort.date}>Дате</option>
-                                            </select>
+                                            <div className="flex items-center gap-2">
+                                                <select 
+                                                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                                                    value={sort}
+                                                    onChange={(e) => setSort(parseInt(e.target.value))}
+                                                >
+                                                    <option value={Sort.none}>Без сортировки</option>
+                                                    <option value={Sort.id}>ID игры</option>
+                                                    <option value={Sort.opponent}>Оппоненту</option>
+                                                    <option value={Sort.dimension}>Размеру поля</option>
+                                                    <option value={Sort.date}>Дате</option>
+                                                </select>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')}
+                                                    className="p-2 text-gray-600 hover:text-gray-800"
+                                                >
+                                                    {sortDirection === 'desc' ? (
+                                                        // Стрелка вниз
+                                                        <svg
+                                                            xmlns="http://www.w3.org/2000/svg"
+                                                            className="h-5 w-5"
+                                                            viewBox="0 0 24 24"
+                                                            fill="none"
+                                                            stroke="currentColor"
+                                                            strokeWidth="2"
+                                                            strokeLinecap="round"
+                                                            strokeLinejoin="round"
+                                                        >
+                                                            <path d="M12 5v14" />
+                                                            <path d="M19 12l-7 7-7-7" />
+                                                        </svg>
+                                                    ) : (
+                                                        // Стрелка вверх
+                                                        <svg
+                                                            xmlns="http://www.w3.org/2000/svg"
+                                                            className="h-5 w-5"
+                                                            viewBox="0 0 24 24"
+                                                            fill="none"
+                                                            stroke="currentColor"
+                                                            strokeWidth="2"
+                                                            strokeLinecap="round"
+                                                            strokeLinejoin="round"
+                                                        >
+                                                            <path d="M12 19V5" />
+                                                            <path d="M5 12l7-7 7 7" />
+                                                        </svg>
+                                                    )}
+                                                </button>
+                                            </div>
                                         </div>
                                         <button 
                                             className="w-full mt-2 px-4 py-2 bg-indigo-500 text-white text-sm font-medium rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
@@ -400,9 +442,12 @@ function Profile() {
                                 </thead>
                                 <tbody>
                                     {games.length > 0 ? (
-                                        games.map((game: any, index: number) => (
-                                            <tr key={game.id} className="text-center hover:bg-gray-100">
-                                                <td className="py-2 px-4">{index + 1}</td>
+                                        games.map((game: any) => (
+                                            <tr key={game.id}
+                                                className="text-center hover:bg-gray-100"
+                                                onClick={() => navigate(`/matches/${game.id}`)}
+                                            >
+                                                <td className="py-2 px-4">{game.id}</td>
                                                 <td className="py-2 px-4">{game.opponentLogin}</td>
                                                 <td className="py-2 px-4">{game.mode === 'fixed' ? 'Фиксированный' : 'Бесконечный'}</td>
                                                 <td className="py-2 px-4">{game.dimensions}x{game.dimensions}</td>

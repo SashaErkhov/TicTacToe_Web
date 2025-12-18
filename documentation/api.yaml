@@ -668,8 +668,8 @@ components:
           enum: [waiting, in_progress, paused, finished]
         result:
           type: [string, "null"]
-          enum: [first_win, second_win, draw, null]
-          description: Final match result, null if not finished.
+          enum: [first_win, second_win, draw, null, frozen]
+          description: Final match result, null if is actual.
         board:
           type: array
           description: >

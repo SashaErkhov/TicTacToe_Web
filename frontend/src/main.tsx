@@ -8,6 +8,7 @@ import Register from "./pages/Register.tsx";
 import New from "./pages/New.tsx";
 import Profile from "./pages/Profile.tsx";
 import Leaders from "./pages/Leaders.tsx";
+import Match from "./pages/Match.tsx";
 
 const router = createBrowserRouter([
     { path: "/", element: <Start /> },
@@ -15,7 +16,8 @@ const router = createBrowserRouter([
     { path: "/register", element: <Register /> },
     { path: "/new", element: <New /> },
     { path: "/profile", element: <Profile /> },
-    { path: "/leaders", element: <Leaders /> }
+    { path: "/leaders", element: <Leaders /> },
+    { path: "/matches/:matchId", element: <Match />, }
 ])
 
 createRoot(document.getElementById("root")!).render(
