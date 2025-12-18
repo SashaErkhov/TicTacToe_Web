@@ -1,0 +1,44 @@
+version: "3.9"
+
+services:
+  frontend:
+    build:
+      context: ./../frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    expose:
+      - "1234"
+    networks:
+      - ttt-net
+
+  backend:
+    build:
+      context: ./../backend-ai
+      dockerfile: Dockerfile
+    container_name: backend
+    expose:
+      - "8000"
+    volumes:
+      - ./data:/app/data
+    networks:
+      - ttt-net
+
+  proxy:
+    build:
+      context: ./../proxy
+      dockerfile: Dockerfile
+    container_name: proxy
+    ports:
+      - "80:80"
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - ttt-net
+
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  ttt-net:
+    driver: bridge

@@ -28,11 +28,11 @@ function Login() {
         .then(response => {
             if (response.ok) {
                 setError(undefined);
-                console.debug("Success post /auth/login")
+                console.debug("Success post /auth/login");
                 navigate('/new');
             } else {
                 setError('Неверный логин или пароль');
-                console.error('Error post /auth/login:', response.statusText)
+                console.error('Error post /auth/login:', response.statusText);
             }
         })
         .catch(error => {

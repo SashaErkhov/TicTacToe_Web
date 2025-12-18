@@ -72,11 +72,11 @@ function Profile() {
             }
         })
             .then(response => {
-            if (response.ok) {
-                return response.json();
-            } else {
-                throw new Error(`Ошибка ${response.status} от ${BACKEND_URL}: ${response.statusText}`);
-            }
+                if (response.ok) {
+                    return response.json();
+                } else {
+                    throw new Error(`Ошибка ${response.status} от ${BACKEND_URL}: ${response.statusText}`);
+                }
             })
             .then(data => {
                 console.log('Success get /users/me');
