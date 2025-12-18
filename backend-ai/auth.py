@@ -70,7 +70,7 @@ def register_user(data, db: Session):
 
     user = User(
         login=data.login,
-        password_hash=pwd.hash(data.password),  # Передаем пароль как есть, обрезка будет внутри bcrypt
+        password_hash=pwd.hash(data.password),
     )
     db.add(user)
     db.commit()
@@ -94,4 +94,4 @@ def login_user(data, response: Response, db: Session):
         max_age=TOKEN_EXPIRE_SECONDS
     )
 
-    return {"status": "ok"}  # токен больше не возвращается в теле
+    return {"status": "ok"}
