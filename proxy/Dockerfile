@@ -6,11 +6,12 @@ RUN rm /etc/nginx/conf.d/default.conf \
     && sed -i 's|pid .*;|pid /tmp/nginx.pid;|' /etc/nginx/nginx.conf
 
 COPY nginx.conf /etc/nginx/nginx.conf
+COPY certs /etc/nginx/certs
 
-RUN chown -R app:app /usr/share/nginx/html /var/cache/nginx /var/run /run
+RUN chown -R app:app /usr/share/nginx/html /var/cache/nginx /var/run /run /etc/nginx/certs
 
 USER app
 
-EXPOSE 80
+EXPOSE 80 443
 
 CMD ["nginx", "-g", "daemon off;"]
