@@ -235,7 +235,7 @@ def get_match_by_id(matchId: int):
         firstPlayerSymbol="X",
         dimensions=3,
         mode="fixed",
-        status="completed",
+        status="finished",
         result="draw",
         board=[
             ["X", "O", "X"],

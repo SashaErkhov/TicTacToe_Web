@@ -1,4 +1,4 @@
-openapi: 3.2.0
+openapi: 3.0.0
 info:
   title: TicTacToe_Web REST API
   description: REST API for a Tic-Tac-Toe game
@@ -649,10 +649,10 @@ components:
           description: Match mode – fixed-size board or infinite/expanding board.
         status:
           type: string
-          enum: [waiting, in_progress, paused, finished]
+          enum: [waiting, in_progress, frozen, finished]
         result:
           type: [string, "null"]
-          enum: [first_win, second_win, draw, null, frozen]
+          enum: [first_win, second_win, draw, null]
           description: Final match result, null if is actual.
         board:
           type: array
