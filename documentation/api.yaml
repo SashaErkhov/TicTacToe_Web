@@ -2,7 +2,7 @@ openapi: 3.2.0
 info:
   title: TicTacToe_Web REST API
   description: REST API for a Tic-Tac-Toe game
-  version: 1.0.0
+  version: 1.1.0
   license:
     name: MIT License
     url: https://opensource.org/licenses/MIT
@@ -14,7 +14,7 @@ servers:
     url: http://localhost:8000/api
     description: Local development server
   - name: prod
-    url: http://176.108.250.40:80/api
+    url: http://176.108.250.40/api
     description: Production server
 
 
@@ -158,18 +158,18 @@ paths:
             enum: [win, loss, draw, frozen]
         - name: from
           in: query
-          description: Filter matches played from this date (inclusive).
+          description: Filter matches played from this date (inclusive). Value is Unix timestamp in milliseconds.
           required: false
           schema:
-            type: string
-            format: date
+            type: integer
+            format: int64
         - name: to
           in: query
-          description: Filter matches played up to this date (inclusive).
+          description: Filter matches played up to this date (inclusive). Value is Unix timestamp in milliseconds.
           required: false
           schema:
-            type: string
-            format: date
+            type: integer
+            format: int64
         - name: limit
           in: query
           description: Maximum number of matches to return.
@@ -467,7 +467,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/RegisterRequest'
+            $ref: '#/components/schemas/AuthRequest'
 
 
     LoginRequestBody:
@@ -476,7 +476,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/LoginRequest'
+            $ref: '#/components/schemas/AuthRequest'
 
 
     UpdateUserRequestBody:
@@ -564,48 +564,35 @@ components:
           required: [code, message]
       required: [error]
 
+    Password:
+      type: string
+      minLength: 8
+      maxLength: 128
+
+    Login:
+      type: string
+      minLength: 3
+      maxLength: 32
 
     User:
       type: object
       properties:
-        id:
-          type: integer
-          format: int64
         login:
-          type: string
-          minLength: 3
-          maxLength: 32
+          $ref: '#/components/schemas/Login'
         level:
           type: integer
           format: int32
           minimum: 0
-        createdAt:
-          type: string
-          format: date-time
-      required: [id, login, level, createdAt]
+      required: [login, level]
 
 
-    RegisterRequest:
+    AuthRequest:
       type: object
       properties:
         login:
-          type: string
-          minLength: 3
-          maxLength: 32
+          $ref: '#/components/schemas/Login'
         password:
-          type: string
-          minLength: 8
-          maxLength: 128
-      required: [login, password]
-
-
-    LoginRequest:
-      type: object
-      properties:
-        login:
-          type: string
-        password:
-          type: string
+          $ref: '#/components/schemas/Password'
       required: [login, password]
 
 
@@ -630,10 +617,10 @@ components:
       type: object
       description: At least one field must be provided.
       properties:
-        password:
-          type: string
-          minLength: 8
-          maxLength: 128
+        oldPassword:
+          $ref: '#/components/schemas/Password'
+        newPassword:
+          $ref: '#/components/schemas/Password'
 
 
     Match:
@@ -643,15 +630,12 @@ components:
         id:
           type: integer
           format: int64
-        firstPlayerId:
-          type: [integer, "null"]
-          format: int64
-        secondPlayerId:
-          type: [integer, "null"]
-          format: int64
-        currentPlayerId:
-          type: [integer, "null"]
-          format: int64
+        firstPlayerLogin:
+          type: [string, "null"]
+        secondPlayerLogin:
+          type: [string, "null"]
+        currentPlayerLogin:
+          type: [string, "null"]
         firstPlayerSymbol:
           type: string
           enum: [X, O]
@@ -701,11 +685,13 @@ components:
           type: string
           enum: [win, loss, draw]
         startedAt:
-          type: string
-          format: date-time
+          type: integer
+          format: int64
+          description: Unix timestamp in milliseconds
         finishedAt:
-          type: [string, "null"]
-          format: date-time
+          type: [integer, "null"]
+          format: int64
+          description: Unix timestamp in milliseconds
       required: [id, mode, dimensions, result, startedAt]
 
 
@@ -733,9 +719,8 @@ components:
         matchId:
           type: integer
           format: int64
-        playerId:
-          type: integer
-          format: int64
+        playerLogin:
+          type: string
         symbol:
           type: string
           enum: [X, O]
@@ -744,8 +729,9 @@ components:
         y:
           type: integer
         createdAt:
-          type: string
-          format: date-time
+          type: integer
+          format: int64
+          description: Unix timestamp in milliseconds
       required: [index, matchId, playerId, symbol, x, y, createdAt]
 
 
@@ -782,11 +768,8 @@ components:
         rank:
           type: integer
           format: int32
-        userId:
-          type: integer
-          format: int64
         login:
-          type: string
+          $ref: '#/components/schemas/Login'
         level:
           type: integer
           format: int32

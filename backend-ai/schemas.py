@@ -60,9 +60,9 @@ class User(BaseModel):
 
 class Match(BaseModel):
     id: int
-    firstPlayerId: int | None
-    secondPlayerId: int | None
-    currentPlayerId: int | None
+    firstPlayerLogin: str | None
+    secondPlayerLogin: str | None
+    currentPlayerLogin: str | None
     firstPlayerSymbol: str
     dimensions: int
     mode: str
@@ -74,7 +74,7 @@ class Match(BaseModel):
 class Move(BaseModel):
     index: int
     matchId: int
-    playerId: int
+    playerLogin: str
     symbol: str
     x: int
     y: int

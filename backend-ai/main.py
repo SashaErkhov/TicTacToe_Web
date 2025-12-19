@@ -229,14 +229,14 @@ def get_match_by_id(matchId: int):
     # Заглушка: игнорируем matchId и возвращаем фиксированные данные
     return Match(
         id=1,
-        firstPlayerId=1,
-        secondPlayerId=2,
-        currentPlayerId=1,
+        firstPlayerLogin="Alice",
+        secondPlayerLogin="Bob",
+        currentPlayerLogin="Alice",
         firstPlayerSymbol="X",
         dimensions=3,
         mode="fixed",
-        status="in_progress",
-        result=None,
+        status="completed",
+        result="draw",
         board=[
             ["X", "O", "X"],
             ["O", "X", "O"],
@@ -252,7 +252,7 @@ def get_match_moves(matchId: int):
         Move(
             index=1,
             matchId=1,
-            playerId=1,
+            playerLogin="Alice",
             symbol="X",
             x=0,
             y=0,
@@ -261,7 +261,7 @@ def get_match_moves(matchId: int):
         Move(
             index=2,
             matchId=1,
-            playerId=2,
+            playerLogin="Bob",
             symbol="O",
             x=1,
             y=0,
@@ -270,7 +270,7 @@ def get_match_moves(matchId: int):
         Move(
             index=3,
             matchId=1,
-            playerId=1,
+            playerLogin="Alice",
             symbol="X",
             x=0,
             y=1,
@@ -279,7 +279,7 @@ def get_match_moves(matchId: int):
         Move(
             index=4,
             matchId=1,
-            playerId=2,
+            playerLogin="Bob",
             symbol="O",
             x=1,
             y=1,
@@ -288,7 +288,7 @@ def get_match_moves(matchId: int):
         Move(
             index=5,
             matchId=1,
-            playerId=1,
+            playerLogin="Alice",
             symbol="X",
             x=0,
             y=2,

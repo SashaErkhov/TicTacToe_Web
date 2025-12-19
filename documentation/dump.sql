@@ -15,7 +15,7 @@ CREATE TYPE game_mode AS ENUM (
 
 CREATE TYPE res_game AS ENUM (
 	'WinX',
-	'WinY',
+	'WinO',
 	'Actual',
 	'Draw',
     'Freeze'
