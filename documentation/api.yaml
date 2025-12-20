@@ -571,7 +571,7 @@ components:
         id:
           type: integer
           format: int64
-        login:
+        username:
           type: string
           minLength: 3
           maxLength: 32
@@ -582,13 +582,13 @@ components:
         createdAt:
           type: string
           format: date-time
-      required: [id, login, level, createdAt]
+      required: [id, username, level, createdAt]
 
 
     RegisterRequest:
       type: object
       properties:
-        login:
+        username:
           type: string
           minLength: 3
           maxLength: 32
@@ -596,17 +596,17 @@ components:
           type: string
           minLength: 8
           maxLength: 128
-      required: [login, password]
+      required: [username, password]
 
 
     LoginRequest:
       type: object
       properties:
-        login:
+        username:
           type: string
         password:
           type: string
-      required: [login, password]
+      required: [username, password]
 
 
     AuthToken:
@@ -785,7 +785,7 @@ components:
         userId:
           type: integer
           format: int64
-        login:
+        username:
           type: string
         level:
           type: integer
@@ -799,7 +799,7 @@ components:
         draws:
           type: integer
           format: int32
-      required: [rank, userId, login, level]
+      required: [rank, userId, username, level]
 
 
     MatchmakingStatus:
