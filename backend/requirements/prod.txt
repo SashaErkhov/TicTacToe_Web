@@ -1,0 +1,9 @@
+fastapi[standard]==0.125.0
+uvicorn
+bcrypt
+python-jose[cryptography]
+python-dotenv
+slowapi
+redis>=5.0.0
+sqlalchemy>=2.0
+asyncpg
