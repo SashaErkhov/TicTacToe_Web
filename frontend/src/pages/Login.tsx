@@ -5,13 +5,14 @@ import { BACKEND_URL } from './../config.ts';
 function Login() {
     const [username, setLogin] = useState<string>("");
     const [pswd, setPswd] = useState<string>("");
-    const [chng, setChng] = useState<boolean | undefined>(undefined);
+    const [chng, setChng] = useState<boolean>(false);
     const [isLoading, setIsLoading] = useState<boolean>(false);
-    const [error, setError] = useState<string | undefined>(undefined);
+    const [error, setError] = useState<string>("");
     const navigate = useNavigate();
 
     useEffect(() => {
         if (!chng || !username || !pswd) { setChng(false); return; }
+        setError("");
         setIsLoading(true);
 
         fetch(`${BACKEND_URL}/auth/login`, {
@@ -27,7 +28,7 @@ function Login() {
         })
         .then(response => {
             if (response.ok) {
-                setError(undefined);
+                setError("");
                 console.debug("Success post /auth/login");
                 navigate('/new');
             } else {
@@ -65,7 +66,6 @@ function Login() {
         <button
           className="text-white text-2xl w-full h-[100px] rounded-md bg-[#9F2D20] hover:bg-[#47140e] flex items-center justify-center"
           onClick={() => {
-              setError(undefined);
               setChng(true);
           }}
           disabled={isLoading}

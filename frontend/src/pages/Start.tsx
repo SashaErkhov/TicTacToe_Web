@@ -21,12 +21,12 @@ function Start() {
                 console.debug("Success post /auth/login");
                 setGood(true);
             } else {
-                console.error('Error post /auth/login:', response.statusText);
+                console.debug('Error post /auth/login:', response.statusText);
                 setGood(false);
             }
             })
             .catch(error => {
-                console.error('Error post /auth/login:', error);
+                console.debug('Error post /auth/login:', error);
                 setGood(false);
             })
     }, []);

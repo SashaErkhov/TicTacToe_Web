@@ -14,7 +14,7 @@ servers:
     url: http://localhost:8000/api
     description: Local development server
   - name: prod
-    url: http://176.108.250.40:80/api
+    url: http://176.108.250.40/api
     description: Production server
 
 
@@ -158,18 +158,18 @@ paths:
             enum: [win, loss, draw, frozen]
         - name: from
           in: query
-          description: Filter matches played from this date (inclusive).
+          description: Filter matches played from this date (inclusive). Value is Unix timestamp in milliseconds.
           required: false
           schema:
-            type: string
-            format: date
+            type: integer
+            format: int64
         - name: to
           in: query
-          description: Filter matches played up to this date (inclusive).
+          description: Filter matches played up to this date (inclusive). Value is Unix timestamp in milliseconds.
           required: false
           schema:
-            type: string
-            format: date
+            type: integer
+            format: int64
         - name: limit
           in: query
           description: Maximum number of matches to return.
@@ -467,7 +467,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/RegisterRequest'
+            $ref: '#/components/schemas/AuthRequest'
 
 
     LoginRequestBody:
@@ -476,7 +476,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/LoginRequest'
+            $ref: '#/components/schemas/AuthRequest'
 
 
     UpdateUserRequestBody:
@@ -564,6 +564,15 @@ components:
           required: [code, message]
       required: [error]
 
+    Password:
+      type: string
+      minLength: 8
+      maxLength: 128
+
+    Login:
+      type: string
+      minLength: 3
+      maxLength: 32
 
     User:
       type: object
@@ -584,7 +593,6 @@ components:
           format: date-time
       required: [id, username, level, createdAt]
 
-
     RegisterRequest:
       type: object
       properties:
@@ -598,15 +606,14 @@ components:
           maxLength: 128
       required: [username, password]
 
-
-    LoginRequest:
+    AuthRequest:
       type: object
       properties:
         username:
-          type: string
+          $ref: '#/components/schemas/Login'
         password:
-          type: string
-      required: [username, password]
+          $ref: '#/components/schemas/Password'
+      required: [login, password]
 
 
     AuthToken:
@@ -630,10 +637,10 @@ components:
       type: object
       description: At least one field must be provided.
       properties:
-        password:
-          type: string
-          minLength: 8
-          maxLength: 128
+        oldPassword:
+          $ref: '#/components/schemas/Password'
+        newPassword:
+          $ref: '#/components/schemas/Password'
 
 
     Match:
@@ -643,15 +650,12 @@ components:
         id:
           type: integer
           format: int64
-        firstPlayerId:
-          type: [integer, "null"]
-          format: int64
-        secondPlayerId:
-          type: [integer, "null"]
-          format: int64
-        currentPlayerId:
-          type: [integer, "null"]
-          format: int64
+        firstPlayerLogin:
+          type: [string, "null"]
+        secondPlayerLogin:
+          type: [string, "null"]
+        currentPlayerLogin:
+          type: [string, "null"]
         firstPlayerSymbol:
           type: string
           enum: [X, O]
@@ -665,10 +669,10 @@ components:
           description: Match mode – fixed-size board or infinite/expanding board.
         status:
           type: string
-          enum: [waiting, in_progress, paused, finished]
+          enum: [waiting, in_progress, frozen, finished]
         result:
           type: [string, "null"]
-          enum: [first_win, second_win, draw, null, frozen]
+          enum: [first_win, second_win, draw, null]
           description: Final match result, null if is actual.
         board:
           type: array
@@ -701,11 +705,13 @@ components:
           type: string
           enum: [win, loss, draw]
         startedAt:
-          type: string
-          format: date-time
+          type: integer
+          format: int64
+          description: Unix timestamp in milliseconds
         finishedAt:
-          type: [string, "null"]
-          format: date-time
+          type: [integer, "null"]
+          format: int64
+          description: Unix timestamp in milliseconds
       required: [id, mode, dimensions, result, startedAt]
 
 
@@ -733,9 +739,8 @@ components:
         matchId:
           type: integer
           format: int64
-        playerId:
-          type: integer
-          format: int64
+        playerLogin:
+          type: string
         symbol:
           type: string
           enum: [X, O]
@@ -744,8 +749,9 @@ components:
         y:
           type: integer
         createdAt:
-          type: string
-          format: date-time
+          type: integer
+          format: int64
+          description: Unix timestamp in milliseconds
       required: [index, matchId, playerId, symbol, x, y, createdAt]
 
 
@@ -786,7 +792,7 @@ components:
           type: integer
           format: int64
         username:
-          type: string
+          $ref: '#/components/schemas/Login'
         level:
           type: integer
           format: int32
