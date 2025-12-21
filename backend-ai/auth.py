@@ -64,6 +64,15 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
 # ─────────────────────── Auth logic ───────────────────────
 
 def register_user(data, db: Session):
+    if len(data.login) < 3:
+        raise HTTPException(status_code=400, detail="Login must be at least 3 characters long")
+    if len(data.login) > 32:
+        raise HTTPException(status_code=400, detail="Login must not exceed 32 characters")
+    if len(data.password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters long")
+    if len(data.password) > 128:
+        raise HTTPException(status_code=400, detail="Password must not exceed 128 characters")
+
     existing = db.query(User).filter(User.login == data.login).first()
     if existing:
         raise HTTPException(status_code=409, detail="Login already exists")

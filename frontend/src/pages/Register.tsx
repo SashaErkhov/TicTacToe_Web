@@ -6,9 +6,9 @@ function Register() {
     const [login, setLogin] = useState<string>("");
     const [pswd, setPswd] = useState<string>("");
     const [confirmPswd, setConfirmPswd] = useState<string>("");
-    const [chng, setChng] = useState<boolean | undefined>(undefined);
+    const [chng, setChng] = useState<boolean>(false);
     const [isLoading, setIsLoading] = useState<boolean>(false);
-    const [error, setError] = useState<string | undefined>(undefined);
+    const [error, setError] = useState<string>("");
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -22,6 +22,7 @@ function Register() {
             return;
         }
 
+        setError('');
         setIsLoading(true);
 
         fetch(`${BACKEND_URL}/auth/register`, {
@@ -37,11 +38,20 @@ function Register() {
         })
             .then(response => {
                 if (response.ok) {
-                    setError(undefined);
+                    setError("");
                     console.debug("Success post /auth/register");
                     navigate('/login');
                 } else {
-                    setError('Ошибка при регистрации');
+                    if (response.status === 409) {
+                        setError('Игрок с таким логином уже существует');
+                    }
+                    else if (response.status === 400 || response.status === 422) {
+                        setError(
+                            'Некорректный логин или пароль. 3<=длина логина<=32, 8<=длина пароля<=128'
+                        );
+                    } else {
+                        setError('Ошибка при регистрации');
+                    }
                     console.error('Error post /auth/register:', response.statusText);
                 }
             })
@@ -53,7 +63,7 @@ function Register() {
                 setIsLoading(false);
                 setChng(false);
             });
-    }, [login, pswd, confirmPswd, chng]);
+    }, [chng]);
 
     return (
         <div className="main-page">
@@ -82,7 +92,6 @@ function Register() {
                 <button
                     className="text-white text-2xl w-full h-[100px] rounded-md bg-[#9F2D20] hover:bg-[#47140e] flex items-center justify-center"
                     onClick={() => {
-                        setError(undefined);
                         setChng(true);
                     }}
                     disabled={isLoading}
