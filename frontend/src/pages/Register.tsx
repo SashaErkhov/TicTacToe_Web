@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { BACKEND_URL } from './../config.ts';
 
 function Register() {
-    const [login, setLogin] = useState<string>("");
+    const [username, setLogin] = useState<string>("");
     const [pswd, setPswd] = useState<string>("");
     const [confirmPswd, setConfirmPswd] = useState<string>("");
     const [chng, setChng] = useState<boolean | undefined>(undefined);
@@ -12,7 +12,7 @@ function Register() {
     const navigate = useNavigate();
 
     useEffect(() => {
-        if (!chng || !login || !pswd || !confirmPswd) {
+        if (!chng || !username || !pswd || !confirmPswd) {
             setChng(false);
             return;
         }
@@ -31,7 +31,7 @@ function Register() {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                login: login,
+                username: username,
                 password: pswd
             })
         })
@@ -53,7 +53,7 @@ function Register() {
                 setIsLoading(false);
                 setChng(false);
             });
-    }, [login, pswd, confirmPswd, chng]);
+    }, [username, pswd, confirmPswd, chng]);
 
     return (
         <div className="main-page">
@@ -62,7 +62,7 @@ function Register() {
                     type="text"
                     placeholder="Логин"
                     className="w-full h-[100px] rounded-md border-2 border-dashed border-black p-5 text-2xl"
-                    value={login}
+                    value={username}
                     onChange={(e) => setLogin(e.target.value)}
                 />
                 <input

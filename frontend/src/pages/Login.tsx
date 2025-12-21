@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { BACKEND_URL } from './../config.ts';
 
 function Login() {
-    const [login, setLogin] = useState<string>("");
+    const [username, setLogin] = useState<string>("");
     const [pswd, setPswd] = useState<string>("");
     const [chng, setChng] = useState<boolean | undefined>(undefined);
     const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -11,7 +11,7 @@ function Login() {
     const navigate = useNavigate();
 
     useEffect(() => {
-        if (!chng || !login || !pswd) { setChng(false); return; }
+        if (!chng || !username || !pswd) { setChng(false); return; }
         setIsLoading(true);
 
         fetch(`${BACKEND_URL}/auth/login`, {
@@ -21,7 +21,7 @@ function Login() {
             },
             credentials: "include",
             body: JSON.stringify({
-                login: login,
+                username: username,
                 password: pswd
             })
         })
@@ -43,7 +43,7 @@ function Login() {
             setIsLoading(false);
             setChng(false);
         });
-    }, [login, pswd, chng]);
+    }, [username, pswd, chng]);
 
   return (
     <div className="main-page">
@@ -52,7 +52,7 @@ function Login() {
           type="text"
           placeholder="Логин"
           className="w-full h-[100px] rounded-md border-2 border-dashed border-black p-5 text-2xl"
-          value={login}
+          value={username}
           onChange={(e) => setLogin(e.target.value)}
         />
         <input
