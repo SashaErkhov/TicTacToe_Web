@@ -36,9 +36,11 @@ function Register() {
                 password: pswd
             })
         })
-            .then(response => {
+            .then(async response=> {
                 if (response.ok) {
                     setError("");
+                    const data = await response.json(); // data = { accessToken, tokenType, expiresIn }
+                    localStorage.setItem('access_token', data.accessToken);
                     console.debug("Success post /auth/register");
                     navigate('/login');
                 } else {

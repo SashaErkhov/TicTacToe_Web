@@ -68,8 +68,7 @@ REFRESH_COOKIE_NAME = os.getenv("REFRESH_COOKIE_NAME", "refresh_token")
 
 app.add_middleware(
     CORSMiddleware,
-    #allow_origins=["http://localhost:5173"],
-    allow_origins=["*"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -131,6 +130,7 @@ async def login_user(body: LoginRequest, response: Response) -> Union[AuthToken,
         samesite="lax",
         max_age=ttl,
         path="/",
+        domain="localhost",
     )
 
     return AuthToken(accessToken=access, tokenType="Bearer", expiresIn=expires_in)
@@ -168,7 +168,6 @@ async def refresh_access(request: Request, response: Response) -> Union[AuthToke
         max_age=ttl,
         path="/",
     )
-
     access, expires_in = create_access_token(user_id=user.id, username=user.username)
     return AuthToken(accessToken=access, tokenType="Bearer", expiresIn=expires_in)
 
@@ -181,43 +180,52 @@ async def logout_user(request: Request, response: Response):
     if refresh:
         r = get_redis()
         await r.delete(f"refresh:{refresh}")
-
     response.delete_cookie(key=REFRESH_COOKIE_NAME, path="/")
     return {"detail": "Logged out"}
 
 
 
-
-
-
 @app.post('/auth/register', status_code=201, tags=['Auth'])
-async def register_user(body: RegisterRequest) -> Optional[Union[User, ErrorResponse]]:
+async def register_user(body: RegisterRequest, response: Response) -> Union[AuthToken, ErrorResponse]:
     global next_user_id
-
     for u in users.values():
         if u.username == body.username:
             raise HTTPException(status_code=409, detail="User already exists")
-
     user_id = next_user_id
     next_user_id += 1
-
     password_hash = hash_password(body.password)
-
     new_user = UserInternal(
         id=user_id,
         username=body.username,
         password_hash=password_hash,
     )
-
     users[user_id] = new_user
 
-    return  User(
-    id=new_user.id,
-    username=new_user.username,
-    level=new_user.level,
-    createdAt=new_user.createdAt,
+
+    # Auto log in
+
+    # create refresh token
+    access, expires_in = create_access_token(user_id=new_user.id, username=new_user.username)
+    refresh = create_refresh_token()
+    ttl = refresh_ttl_seconds()
+
+    # save refresh token to Redis
+    r = get_redis()
+    await r.setex(f"refresh:{refresh}", ttl, str(new_user.id))
+
+    # Set refresh token in httpOnly cookie
+    response.set_cookie(
+        key=REFRESH_COOKIE_NAME,
+        value=refresh,
+        httponly=True,
+        secure=False, # true in prod
+        samesite="lax",
+        max_age=ttl,
+        path="/"
     )
 
+    # Return access token
+    return AuthToken(accessToken=access, tokenType="Bearer", expiresIn=expires_in)
 
 
 

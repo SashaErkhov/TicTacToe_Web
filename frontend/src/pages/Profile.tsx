@@ -1,7 +1,8 @@
 import { useNavigate } from "react-router-dom";
 import {useEffect, useState} from "react";
 import {BACKEND_URL} from "./../config.ts";
-import { checkCookies } from "./../foos.ts";
+// import { checkCookies } from "./../foos.ts";
+import { apiFetch } from "../api.ts";
 
 function Profile() {
     const navigate = useNavigate();
@@ -52,12 +53,12 @@ function Profile() {
 
 
     useEffect(() => {
-        try {
-            checkCookies();
-        } catch {
-            setError("Ошибка авторизации");
-            console.error("Error auth");
-        }
+        // try {
+        //     checkCookies();
+        // } catch {
+        //     setError("Ошибка авторизации");
+        //     console.error("Error auth");
+        // }
     }, []);
 
     useEffect(() => {
@@ -65,24 +66,17 @@ function Profile() {
         setUser(undefined);
         setError("");
 
-        fetch(`${BACKEND_URL}/users/me`,{
-            method: "GET",
-            credentials: "include",
-            headers: {
-                "Content-Type": "application/json",
-            }
-        })
-            .then(response => {
+        apiFetch(`/users/me`,{ method: "GET", })
+            .then(async response => {
                 if (response.ok) {
-                    return response.json();
+                    const data = await response.json();
+                    setUser(data);
+                    //return response.json();
                 } else {
-                    throw new Error(`Ошибка ${response.status} от ${BACKEND_URL}: ${response.statusText}`);
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.detail || `Ошибка ${response.status}`);
+                    //throw new Error(`Ошибка ${response.status} от ${BACKEND_URL}: ${response.statusText}`);
                 }
-            })
-            .then(data => {
-                console.log('Success get /users/me');
-                setUser(data);
-                setError("");
             })
             .catch(error => {
                 console.error('Error get /users/me:', error);
@@ -99,13 +93,7 @@ function Profile() {
         setStats(undefined);
         setError("");
 
-        fetch(`${BACKEND_URL}/users/me/stats`,{
-            method: "GET",
-            credentials: "include",
-            headers: {
-                "Content-Type": "application/json",
-            }
-        })
+        apiFetch(`/users/me/stats`)
             .then(response => {
                 if (response.ok) {
                     return response.json();
@@ -143,13 +131,7 @@ function Profile() {
 
         const query = new URLSearchParams(filtered).toString();
 
-        fetch(`${BACKEND_URL}/users/me/matches?${query}`,{
-            method: "GET",
-            credentials: "include",
-            headers: {
-                "Content-Type": "application/json",
-            }
-        })
+        apiFetch(`/users/me/matches?${query}`)
             .then(response => {
                 if (response.ok) {
                     return response.json();

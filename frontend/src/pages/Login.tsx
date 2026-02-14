@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from "react";
-import { BACKEND_URL } from './../config.ts';
+import {apiFetch} from "../api.ts";
 
 function Login() {
     const [username, setLogin] = useState<string>("");
@@ -15,7 +15,7 @@ function Login() {
         setError("");
         setIsLoading(true);
 
-        fetch(`${BACKEND_URL}/auth/login`, {
+        apiFetch(`/auth/login`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -26,9 +26,11 @@ function Login() {
                 password: pswd
             })
         })
-        .then(response => {
+        .then(async response => {
             if (response.ok) {
                 setError("");
+                const data = await response.json(); // data = { accessToken, tokenType, expiresIn }
+                localStorage.setItem('access_token', data.accessToken);
                 console.debug("Success post /auth/login");
                 navigate('/new');
             } else {
