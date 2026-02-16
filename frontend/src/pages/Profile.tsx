@@ -1,26 +1,28 @@
 import { useNavigate } from "react-router-dom";
 import {useEffect, useState} from "react";
 import {BACKEND_URL} from "./../config.ts";
-// import { checkCookies } from "./../foos.ts";
-import { apiFetch } from "../api.ts";
+import { useAuth } from "../AuthContext";
+
+interface Game {
+    id: number;
+    opponentLogin: string;
+    mode: 'fixed' | 'infinite';
+    dimensions: number;
+    result: 'win' | 'loss' | 'draw' | 'frozen';
+    startedAt: number;
+}
+
+interface Stats {
+    totalMatches: number;
+    wins: number;
+    losses: number;
+    draws: number;
+    winRate: number;
+}
 
 function Profile() {
     const navigate = useNavigate();
-
-    const logout = () => {
-        if (window.confirm("Вы действительно хотите выйти?")) {
-            fetch(`${BACKEND_URL}/auth/logout`, {
-                method: "POST",
-                credentials: "include",
-                headers: {
-                    "Content-Type": "application/json",
-                }
-            })
-            .finally(() => {
-                navigate("/");
-            });
-        }
-    };
+    const { user, accessToken, logout: authLogout } = useAuth();
 
     const Sort = {
         id: 0,
@@ -32,11 +34,8 @@ function Profile() {
 
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [error, setError] = useState<string>("");
-    const [user, setUser] = useState<any>(undefined)
-    const [login, setLogin] = useState<string>("");
-    const [level, setLevel] = useState<number>(0);
-    const [stats, setStats] = useState<any>(undefined);
-    const [games, setGames] = useState<any[]>([]);
+    const [stats, setStats] = useState<Stats | undefined>(undefined);
+    const [games, setGames] = useState<Game[]>([]);
     const [params, setParams] = useState<any>({
         mode: undefined,
         result: undefined,
@@ -50,76 +49,56 @@ function Profile() {
     const [sort, setSort] = useState<number>(Sort.none);
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
+    const handleLogout = () => {
+        if (window.confirm("Вы действительно хотите выйти?")) {
+            authLogout();
+        }
+    };
 
+    const authFetch = async (url: string, options: RequestInit = {}) => {
+        return fetch(`${BACKEND_URL}${url}`, {
+            ...options,
+            credentials: "include",
+            headers: {
+                ...options.headers,
+                "Authorization": `Bearer ${accessToken}`,
+                "Content-Type": "application/json",
+            },
+        });
+    };
 
+    // Load stats
     useEffect(() => {
-        // try {
-        //     checkCookies();
-        // } catch {
-        //     setError("Ошибка авторизации");
-        //     console.error("Error auth");
-        // }
-    }, []);
+        if (!accessToken) return;
 
-    useEffect(() => {
-        setIsLoading(true);
-        setUser(undefined);
-        setError("");
-
-        apiFetch(`/users/me`,{ method: "GET", })
-            .then(async response => {
-                if (response.ok) {
-                    const data = await response.json();
-                    setUser(data);
-                    //return response.json();
-                } else {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.detail || `Ошибка ${response.status}`);
-                    //throw new Error(`Ошибка ${response.status} от ${BACKEND_URL}: ${response.statusText}`);
-                }
-            })
-            .catch(error => {
-                console.error('Error get /users/me:', error);
-                setError(error);
-                setUser(undefined);
-            })
-            .finally(() => {
-                setIsLoading(false);
-            });
-    }, []);
-
-    useEffect(() => {
         setIsLoading(true);
         setStats(undefined);
         setError("");
 
-        apiFetch(`/users/me/stats`)
-            .then(response => {
+        authFetch(`/users/me/stats`)
+            .then(async response => {
                 if (response.ok) {
-                    return response.json();
+                    const data = await response.json();
+                    setStats(data);
+                    setError("");
                 } else {
-                    throw new Error(`Ошибка ${response.status} от ${BACKEND_URL}: ${response.statusText}`);
+                    throw new Error(`Ошибка ${response.status}`);
                 }
-            })
-            .then(data => {
-                console.log('Success get /users/me/stats');
-                setStats(data);
-                setError("");
             })
             .catch(error => {
                 console.error('Error get /users/me/stats:', error);
-                setError(error);
+                setError(error.message);
                 setStats(undefined);
             })
             .finally(() => {
                 setIsLoading(false);
             });
-    }, []);
+    }, [accessToken]);
 
+    // Load game history
     useEffect(() => {
-        if (!reload) {
-            return;
-        }
+        if (!accessToken || !reload) return;
+
         setReload(false);
         setIsLoading(true);
         setGames([]);
@@ -131,52 +110,43 @@ function Profile() {
 
         const query = new URLSearchParams(filtered).toString();
 
-        apiFetch(`/users/me/matches?${query}`)
-            .then(response => {
+        authFetch(`/users/me/matches?${query}`)
+            .then(async response => {
                 if (response.ok) {
-                    return response.json();
-                } else {
-                    throw new Error(`Ошибка ${response.status} от ${BACKEND_URL}: ${response.statusText}`);
-                }
-            })
-            .then(data => {
-                console.log('Success get /users/me/matches');
-                let copy = [...data];
-                const direction = sortDirection === 'asc' ? 1 : -1;
-                
-                switch (sort) {
-                    case Sort.id:
-                        copy.sort((a, b) => direction * (a.id - b.id));
-                        break;
-                    case Sort.opponent:
-                        copy.sort((a, b) => direction * a.opponentLogin.localeCompare(b.opponentLogin));
-                        break;
-                    case Sort.dimension:
-                        copy.sort((a, b) => direction * (a.dimensions - b.dimensions));
-                        break;
-                    case Sort.date:
-                        copy.sort((a, b) => direction * (a.startedAt - b.startedAt));
-                        break;
-                }
+                    const data = await response.json();
+                    let copy = [...data];
+                    const direction = sortDirection === 'asc' ? 1 : -1;
 
-                setGames(copy);
-                setError("");
+                    switch (sort) {
+                        case Sort.id:
+                            copy.sort((a, b) => direction * (a.id - b.id));
+                            break;
+                        case Sort.opponent:
+                            copy.sort((a, b) => direction * a.opponentLogin.localeCompare(b.opponentLogin));
+                            break;
+                        case Sort.dimension:
+                            copy.sort((a, b) => direction * (a.dimensions - b.dimensions));
+                            break;
+                        case Sort.date:
+                            copy.sort((a, b) => direction * (a.startedAt - b.startedAt));
+                            break;
+                    }
+
+                    setGames(copy);
+                    setError("");
+                } else {
+                    throw new Error(`Ошибка ${response.status}`);
+                }
             })
             .catch(error => {
                 console.error('Error get /users/me/matches:', error);
-                setError(error);
+                setError(error.message);
                 setGames([]);
             })
             .finally(() => {
                 setIsLoading(false);
             });
-    }, [params, sort, reload]);
-
-    useEffect(() => {
-        if (user === undefined) return;
-        setLogin(user.login);
-        setLevel(user.level);
-    }, [user]);
+    }, [accessToken, params, sort, reload]);
 
     if (isLoading) {
         return (
@@ -187,6 +157,7 @@ function Profile() {
             </div>
         )
     }
+
     if (error) {
         return (
             <div className="main-page">
@@ -196,25 +167,34 @@ function Profile() {
             </div>
         )
     }
+
+    if (!user) {
+        return (
+            <div className="main-page">
+                <div className="w-md h-md rounded-md shadow-lg px-5 py-5">
+                    Пользователь не найден
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="main-page">
             <div className="w-3xl h-xl bg-white rounded-md shadow-lg px-3 py-3 flex flex-col gap-3">
 
                 {/* Header */}
                 <div className="flex justify-between items-center border-2 border-black rounded-md px-3 py-3">
-                    <div className="text-2xl">{login}. Уровень игрока: {level}</div>
+                    <div className="text-2xl">{user.username}. Уровень игрока: {user.rating || 0}</div>
                     <div className="flex gap-3">
                         <button
-                            className="text-2xl px-1  rounded-md bg-[#C5C5C5] hover:bg-gray-400
-                        text-white"
+                            className="text-2xl px-1 rounded-md bg-[#C5C5C5] hover:bg-gray-400 text-white"
                             onClick={() => navigate("/new")}
                         >
                             Новая игра
                         </button>
                         <button
-                            className="text-2xl px-1  rounded-md bg-[#C5C5C5] hover:bg-gray-400
-                        text-white underline"
-                            onClick={() => logout()}
+                            className="text-2xl px-1 rounded-md bg-[#C5C5C5] hover:bg-gray-400 text-white underline"
+                            onClick={handleLogout}
                         >
                             Выйти
                         </button>
@@ -238,11 +218,11 @@ function Profile() {
                         </>
                     )}
 
-                    <div className="text-2xl">Игры</div>
+                    <div className="text-2xl mt-4">История игр</div>
 
                     <div className="flex gap-3 self-end">
                         <div className="relative">
-                            <button 
+                            <button
                                 className="text-2xl px-1 rounded-md bg-[#C5C5C5] hover:bg-gray-400 text-white"
                                 onClick={() => {
                                     setSortOpen(!sortOpen);
@@ -252,12 +232,14 @@ function Profile() {
                                 Сортировка
                             </button>
                             {sortOpen && (
-                                <div className="fixed right-0 bottom-0 mt-2 w-62 bg-white border border-gray-300 rounded-md shadow-lg z-10">
+                                <div
+                                    className="absolute right-0 mt-2 w-62 bg-white border border-gray-300 rounded-md shadow-lg z-10">
                                     <div className="p-3">
                                         <div className="mb-2">
-                                            <label className="block text-sm font-medium text-gray-700">Сортировать по</label>
+                                            <label className="block text-sm font-medium text-gray-700">Сортировать
+                                                по</label>
                                             <div className="flex items-center gap-2">
-                                                <select 
+                                                <select
                                                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                                                     value={sort}
                                                     onChange={(e) => setSort(parseInt(e.target.value))}
@@ -274,7 +256,6 @@ function Profile() {
                                                     className="p-2 text-gray-600 hover:text-gray-800"
                                                 >
                                                     {sortDirection === 'desc' ? (
-                                                        // Стрелка вниз
                                                         <svg
                                                             xmlns="http://www.w3.org/2000/svg"
                                                             className="h-5 w-5"
@@ -285,11 +266,10 @@ function Profile() {
                                                             strokeLinecap="round"
                                                             strokeLinejoin="round"
                                                         >
-                                                            <path d="M12 5v14" />
-                                                            <path d="M19 12l-7 7-7-7" />
+                                                            <path d="M12 5v14"/>
+                                                            <path d="M19 12l-7 7-7-7"/>
                                                         </svg>
                                                     ) : (
-                                                        // Стрелка вверх
                                                         <svg
                                                             xmlns="http://www.w3.org/2000/svg"
                                                             className="h-5 w-5"
@@ -300,14 +280,14 @@ function Profile() {
                                                             strokeLinecap="round"
                                                             strokeLinejoin="round"
                                                         >
-                                                            <path d="M12 19V5" />
-                                                            <path d="M5 12l7-7 7 7" />
+                                                            <path d="M12 19V5"/>
+                                                            <path d="M5 12l7-7 7 7"/>
                                                         </svg>
                                                     )}
                                                 </button>
                                             </div>
                                         </div>
-                                        <button 
+                                        <button
                                             className="w-full mt-2 px-4 py-2 bg-indigo-500 text-white text-sm font-medium rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                                             onClick={() => {
                                                 setSortOpen(false);
@@ -321,24 +301,29 @@ function Profile() {
                             )}
                         </div>
                         <div className="relative">
-                            <button 
+                            <button
                                 className="text-2xl px-1 rounded-md bg-[#C5C5C5] hover:bg-gray-400 text-white"
                                 onClick={() => {
                                     setFilterOpen(!filterOpen);
                                     setSortOpen(false);
                                 }}
                             >
-                                Фильтр.
+                                Фильтр
                             </button>
                             {filterOpen && (
-                                <div className="fixed right-0 bottom-0 mt-2 w-48 bg-white border border-gray-300 rounded-md shadow-lg z-10">
+                                <div
+                                    className="absolute right-0 mt-2 w-48 bg-white border border-gray-300 rounded-md shadow-lg z-10">
                                     <div className="p-3">
                                         <div className="mb-2">
-                                            <label className="block text-sm font-medium text-gray-700">Режим игры</label>
-                                            <select 
+                                            <label className="block text-sm font-medium text-gray-700">Режим
+                                                игры</label>
+                                            <select
                                                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                                                 value={params.mode || ""}
-                                                onChange={(e) => setParams({...params, mode: e.target.value || undefined})}
+                                                onChange={(e) => setParams({
+                                                    ...params,
+                                                    mode: e.target.value || undefined
+                                                })}
                                             >
                                                 <option value="">Все</option>
                                                 <option value="fixed">Фиксированный</option>
@@ -347,10 +332,13 @@ function Profile() {
                                         </div>
                                         <div className="mb-2">
                                             <label className="block text-sm font-medium text-gray-700">Результат</label>
-                                            <select 
+                                            <select
                                                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                                                 value={params.result || ""}
-                                                onChange={(e) => setParams({...params, result: e.target.value || undefined})}
+                                                onChange={(e) => setParams({
+                                                    ...params,
+                                                    result: e.target.value || undefined
+                                                })}
                                             >
                                                 <option value="">Все</option>
                                                 <option value="win">Победа</option>
@@ -361,19 +349,22 @@ function Profile() {
                                         </div>
                                         <div className="mb-2">
                                             <label className="block text-sm font-medium text-gray-700">Показать</label>
-                                            <input 
-                                                type="number" 
+                                            <input
+                                                type="number"
                                                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                                                value={params.limit || ""}
-                                                onChange={(e) => setParams({...params, limit: e.target.value ? parseInt(e.target.value) : undefined})}
+                                                value={params.limit || 20}
+                                                onChange={(e) => setParams({
+                                                    ...params,
+                                                    limit: e.target.value ? parseInt(e.target.value) : undefined
+                                                })}
                                                 min="1"
                                                 max="100"
                                             />
                                         </div>
                                         <div className="mb-2">
                                             <label className="block text-sm font-medium text-gray-700">Дата от</label>
-                                            <input 
-                                                type="date" 
+                                            <input
+                                                type="date"
                                                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                                                 value={params.from_date ? new Date(params.from_date).toISOString().split('T')[0] : ""}
                                                 onChange={(e) => {
@@ -384,8 +375,8 @@ function Profile() {
                                         </div>
                                         <div className="mb-2">
                                             <label className="block text-sm font-medium text-gray-700">Дата до</label>
-                                            <input 
-                                                type="date" 
+                                            <input
+                                                type="date"
                                                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                                                 value={params.to_date ? new Date(params.to_date).toISOString().split('T')[0] : ""}
                                                 onChange={(e) => {
@@ -394,7 +385,7 @@ function Profile() {
                                                 }}
                                             />
                                         </div>
-                                        <button 
+                                        <button
                                             className="w-full mt-2 px-4 py-2 bg-indigo-500 text-white text-sm font-medium rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                                             onClick={() => {
                                                 setFilterOpen(false);
@@ -411,48 +402,50 @@ function Profile() {
 
                     {games && (
                         <div className="mt-4 w-full">
-                            <table className="min-w-full bg-white rounded-md border border-gray-300 border-separate border-spacing-0">
+                            <table
+                                className="min-w-full bg-white rounded-md border border-gray-300 border-separate border-spacing-0">
                                 <thead>
-                                    <tr className="bg-gray-100">
-                                        <th className="py-2 px-4">#</th>
-                                        <th className="py-2 px-4">Оппонент</th>
-                                        <th className="py-2 px-4">Режим</th>
-                                        <th className="py-2 px-4">Размер</th>
-                                        <th className="py-2 px-4">Результат</th>
-                                        <th className="py-2 px-4">Дата</th>
-                                    </tr>
+                                <tr className="bg-gray-100">
+                                    <th className="py-2 px-4">#</th>
+                                    <th className="py-2 px-4">Оппонент</th>
+                                    <th className="py-2 px-4">Режим</th>
+                                    <th className="py-2 px-4">Размер</th>
+                                    <th className="py-2 px-4">Результат</th>
+                                    <th className="py-2 px-4">Дата</th>
+                                </tr>
                                 </thead>
                                 <tbody>
-                                    {games.length > 0 ? (
-                                        games.map((game: any) => (
-                                            <tr key={game.id}
-                                                className="text-center hover:bg-gray-100"
-                                                onClick={() => navigate(`/matches/${game.id}`)}
-                                            >
-                                                <td className="py-2 px-4">{game.id}</td>
-                                                <td className="py-2 px-4">{game.opponentLogin}</td>
-                                                <td className="py-2 px-4">{game.mode === 'fixed' ? 'Фиксированный' : 'Бесконечный'}</td>
-                                                <td className="py-2 px-4">{game.dimensions}x{game.dimensions}</td>
-                                                <td className="py-2 px-4">
+                                {games.length > 0 ? (
+                                    games.map((game: Game) => (
+                                        <tr key={game.id}
+                                            className="text-center hover:bg-gray-100 cursor-pointer"
+                                            onClick={() => navigate(`/matches/${game.id}`)}
+                                        >
+                                            <td className="py-2 px-4">{game.id}</td>
+                                            <td className="py-2 px-4">{game.opponentLogin}</td>
+                                            <td className="py-2 px-4">{game.mode === 'fixed' ? 'Фиксированный' : 'Бесконечный'}</td>
+                                            <td className="py-2 px-4">{game.dimensions}x{game.dimensions}</td>
+                                            <td className="py-2 px-4">
                                                     <span className={`px-2 py-1 rounded-full text-white text-xs ${
                                                         game.result === 'win' ? 'bg-green-600' :
-                                                        game.result === 'loss' ? 'bg-red-600' : 
-                                                            game.result === 'frozen' ? 'bg-blue-600' :
-                                                        'bg-yellow-600'
+                                                            game.result === 'loss' ? 'bg-red-600' :
+                                                                game.result === 'frozen' ? 'bg-blue-600' :
+                                                                    'bg-yellow-600'
                                                     }`}>
                                                         {game.result === 'win' ? 'Победа' :
-                                                         game.result === 'loss' ? 'Поражение' :
-                                                             game.result === 'frozen' ? 'Заморожена': 'Ничья'}
+                                                            game.result === 'loss' ? 'Поражение' :
+                                                                game.result === 'frozen' ? 'Заморожена' : 'Ничья'}
                                                     </span>
-                                                </td>
-                                                <td className="py-2 px-4">{new Date(game.startedAt).toLocaleDateString()}</td>
-                                            </tr>
-                                        ))
-                                    ) : (
-                                        <tr>
-                                            <td colSpan={6} className="py-2 px-4 text-center text-gray-500">Игр не найдено</td>
+                                            </td>
+                                            <td className="py-2 px-4">{new Date(game.startedAt).toLocaleDateString()}</td>
                                         </tr>
-                                    )}
+                                    ))
+                                ) : (
+                                    <tr>
+                                        <td colSpan={6} className="py-2 px-4 text-center text-gray-500">Игр не найдено
+                                        </td>
+                                    </tr>
+                                )}
                                 </tbody>
                             </table>
                         </div>
