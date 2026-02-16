@@ -1,6 +1,7 @@
 import {Link, useNavigate} from 'react-router-dom';
 import {useState} from "react";
 import {BACKEND_URL} from './../config.ts';
+import { useAuth } from '../AuthContext';
 
 function Register() {
     const [username, setUsername] = useState("");
@@ -10,6 +11,7 @@ function Register() {
     const [error, setError] = useState("");
 
     const navigate = useNavigate();
+    const { setAccessToken, fetchUser } = useAuth();
 
     const handleRegister = async (e?: React.FormEvent) => {
         e?.preventDefault();
@@ -44,8 +46,9 @@ function Register() {
 
             if (response.ok) {
                 const data = await response.json();
-                localStorage.setItem("access_token", data.accessToken);
-                navigate("/login");
+                setAccessToken(data.accessToken);
+                await fetchUser();
+                navigate("/new");
                 return;
             }
 

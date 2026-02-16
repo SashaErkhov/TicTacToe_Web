@@ -1,6 +1,7 @@
 import {Link, useNavigate} from 'react-router-dom';
 import {useState} from "react";
-import {apiFetch} from "../api.ts";
+import {useAuth} from '../AuthContext';
+import {BACKEND_URL} from '../config';
 
 function Login() {
     const [username, setUsername] = useState("");
@@ -9,6 +10,7 @@ function Login() {
     const [error, setError] = useState("");
 
     const navigate = useNavigate();
+    const { setAccessToken, fetchUser } = useAuth();
 
     const handleLogin = async (e?: React.FormEvent) => {
         e?.preventDefault();
@@ -23,7 +25,7 @@ function Login() {
             setIsLoading(true);
             setError("");
 
-            const response = await apiFetch(`/auth/login`, {
+            const response = await fetch(`${BACKEND_URL}/auth/login`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -42,7 +44,9 @@ function Login() {
 
             const data = await response.json();
 
-            localStorage.setItem("access_token", data.accessToken);
+            setAccessToken(data.accessToken);
+
+            await fetchUser();
 
             navigate("/new");
         } catch {
