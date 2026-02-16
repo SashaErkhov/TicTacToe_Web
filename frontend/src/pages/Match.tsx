@@ -1,28 +1,48 @@
 import {Link, useParams} from 'react-router-dom';
 import { BACKEND_URL } from "../config.ts";
 import {useEffect, useState} from 'react';
-import {checkCookies} from "../foos.ts";
+import { useAuth } from "../AuthContext";
+
+interface MatchInfo {
+    mode: 'fixed' | 'infinite';
+    dimensions: number;
+    status: string;
+    currentPlayerLogin: string;
+    firstPlayerLogin: string;
+    secondPlayerLogin: string;
+    firstPlayerSymbol: 'X' | 'O';
+    result?: string;
+    board: string[][];
+}
+
+interface Move {
+    index: number;
+    playerLogin: string;
+    symbol: 'X' | 'O';
+    x: number;
+    y: number;
+    createdAt: number;
+}
 
 function Match() {
     const { matchId } = useParams<{ matchId: string }>();
+    const { accessToken } = useAuth();
 
     const [error, setError] = useState<string>("");
-    const [info, setInfo] = useState<any>(undefined);
+    const [info, setInfo] = useState<MatchInfo | undefined>(undefined);
     const [isLoading, setIsLoading] = useState<boolean>(false);
-    const [moves, setMoves] = useState<any[]>([]);
+    const [moves, setMoves] = useState<Move[]>([]);
     const [isFrozen, setIsFrozen] = useState<boolean>(false);
-
-    let ID: number = NaN;
 
     if (matchId === undefined) {
         console.error("Match ID is undefined");
-        setError("ID игры не указан");
-    } else {
-        ID = parseInt(matchId);
+        return <div>ID игры не указан</div>;
     }
+
+    const ID = parseInt(matchId);
     if (isNaN(ID)) {
         console.error("Invalid match ID");
-        setError("Неверный ID игры");
+        return <div>Неверный ID игры</div>;
     }
 
     const getCellClass = (symbol: string) => {
@@ -31,102 +51,115 @@ function Match() {
         return 'bg-white';
     };
 
-    useEffect(() => {
-        try {
-            checkCookies();
-        } catch {
-            setError("Ошибка авторизации");
-            console.error("Error auth");
-        }
-    }, []);
+    const authFetch = async (url: string, options: RequestInit = {}) => {
+        return fetch(`${BACKEND_URL}${url}`, {
+            ...options,
+            credentials: "include",
+            headers: {
+                ...options.headers,
+                "Authorization": `Bearer ${accessToken}`,
+                "Content-Type": "application/json",
+            },
+        });
+    };
 
+    // Load game info
     useEffect(() => {
+        if (!accessToken || !ID) return;
+
         setIsLoading(true);
         setInfo(undefined);
         setError("");
 
-        fetch(`${BACKEND_URL}/matches/${ID}`,{
-            method: "GET",
-            credentials: "include",
-            headers: {
-                "Content-Type": "application/json",
-            }
-        })
-            .then(response => {
+        authFetch(`/matches/${ID}`)
+            .then(async response => {
                 if (response.ok) {
-                    return response.json();
+                    const data = await response.json();
+                    setInfo(data);
+                    setIsFrozen(data.result === 'frozen');
+                    setError("");
                 } else {
-                    throw new Error(`Ошибка ${response.status} от ${BACKEND_URL}: ${response.statusText}`);
+                    throw new Error(`Ошибка ${response.status}`);
                 }
             })
-            .then(data => {
-                console.log('Success get /matches/${ID}');
-                setInfo(data);
-                setError("");
-            })
             .catch(error => {
-                console.error('Error get /matches/${ID}:', error);
-                setError(error);
+                console.error(`Error get /matches/${ID}:`, error);
+                setError(error.message);
                 setInfo(undefined);
             })
             .finally(() => {
                 setIsLoading(false);
-                setIsFrozen(info.result === 'frozen');
             });
-    }, []);
+    }, [accessToken, ID]);
 
+    // Load game history
     useEffect(() => {
+        if (!accessToken || !ID) return;
+
         setIsLoading(true);
         setMoves([]);
         setError("");
 
-        fetch(`${BACKEND_URL}/matches/${ID}/moves`,{
-            method: "GET",
-            credentials: "include",
-            headers: {
-                "Content-Type": "application/json",
-            }
-        })
-            .then(response => {
+        authFetch(`/matches/${ID}/moves`)
+            .then(async response => {
                 if (response.ok) {
-                    return response.json();
+                    const data = await response.json();
+                    setMoves(data);
+                    setError("");
                 } else {
-                    throw new Error(`Ошибка ${response.status} от ${BACKEND_URL}: ${response.statusText}`);
+                    throw new Error(`Ошибка ${response.status}`);
                 }
             })
-            .then(data => {
-                console.log('Success get }/matches/${ID}/moves');
-                setMoves(data);
-                setError("");
-            })
             .catch(error => {
-                console.error('Error get }/matches/${ID}/moves:', error);
-                setError(error);
+                console.error(`Error get /matches/${ID}/moves:`, error);
+                setError(error.message);
                 setMoves([]);
             })
             .finally(() => {
                 setIsLoading(false);
             });
-    }, []);
+    }, [accessToken, ID]);
+
+    const handleContinueGame = async () => {
+        if (!accessToken || !ID) return;
+
+        try {
+            const response = await authFetch(`/matches/${ID}/continue`, {
+                method: "POST"
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setInfo(data);
+                setIsFrozen(false);
+            } else {
+                setError("Не удалось продолжить игру");
+            }
+        } catch (error) {
+            setError("Ошибка при продолжении игры");
+        }
+    };
 
     if (error) {
         return (
             <div className="main-page">
                 <div className="w-md h-md rounded-md shadow-lg px-5 py-5 text-red-600 bg-red-100">
-                    Произошла ошибка. Скоро исправим.
+                    Ошибка: {error}
                 </div>
             </div>
         );
     }
-    if (isLoading) {
+
+    if (isLoading && !info) {
         return (
             <div className="main-page">
                 <div className="w-md h-md bg-white rounded-md shadow-lg px-5 py-5">
-                    Загрузка...
+                    Загрузка игры...
                 </div>
             </div>
         );
     }
+
     if (!info) {
         return (
             <div className="main-page">
@@ -136,24 +169,25 @@ function Match() {
             </div>
         );
     }
+
     return (
         <div className="main-page">
             <div className="w-3xl h-xl bg-white rounded-md shadow-lg px-3 py-3 flex flex-col gap-3">
-                
+
                 {/* Header */}
                 <div className="flex justify-between items-center border-2 border-black rounded-md px-3 py-3">
                     <div className="text-2xl">Игра #{ID}</div>
                     <div className="flex gap-3">
                         <Link
-                            className="text-2xl px-1 rounded-md bg-[#C5C5C5] hover:bg-gray-400 text-white"
+                            className="text-2xl px-4 py-2 rounded-md bg-[#C5C5C5] hover:bg-gray-400 text-white no-underline"
                             to="/profile"
                         >
                             Назад
                         </Link>
                         {isFrozen && (
                             <button
-                                className="text-2xl px-1 rounded-md bg-green-600 hover:bg-green-700 text-white"
-                                onClick={() => {}}
+                                className="text-2xl px-4 py-2 rounded-md bg-green-600 hover:bg-green-700 text-white"
+                                onClick={handleContinueGame}
                             >
                                 Продолжить
                             </button>
@@ -163,10 +197,10 @@ function Match() {
 
                 {/* Content area */}
                 <div className="border-2 border-black rounded-md min-h-[500px] p-3 flex flex-col items-center">
-                    
-                    <div className="text-2xl mb-2">Информация об игре</div>
-                    
-                    <div className="grid grid-cols-2 gap-4 text-xl mb-2">
+
+                    <div className="text-2xl mb-4">Информация об игре</div>
+
+                    <div className="grid grid-cols-2 gap-4 text-xl mb-4">
                         <div>Режим: {info.mode === 'fixed' ? 'Фиксированный' : 'Бесконечный'}</div>
                         <div>Размер поля: {info.dimensions}x{info.dimensions}</div>
                         <div>Статус: {info.status}</div>
@@ -174,13 +208,17 @@ function Match() {
                         <div>Первый игрок: {info.firstPlayerLogin}</div>
                         <div>Второй игрок: {info.secondPlayerLogin}</div>
                         <div>Символ первого игрока: {info.firstPlayerSymbol}</div>
-                        {info.status === "finished" && (<div>Результат: {info.result || 'в процессе'}</div>)}
+                        {info.status === "finished" && (
+                            <div>Результат: {info.result || 'в процессе'}</div>
+                        )}
                     </div>
 
                     {/* Игровое поле */}
                     <div className="mb-6">
-                        <div className="text-xl mb-2">Состояние поля:</div>
-                        <div className="grid grid-cols-3 gap-4 border-2 border-gray-400 rounded-md">
+                        <div className="text-xl mb-2 text-center">Состояние поля:</div>
+                        <div className="grid gap-1" style={{
+                            gridTemplateColumns: `repeat(${info.dimensions}, minmax(0, 1fr))`
+                        }}>
                             {info.board.map((row: string[], rowIndex: number) => (
                                 row.map((cell: string, colIndex: number) => (
                                     <div
@@ -209,7 +247,7 @@ function Match() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {moves.map((move: any) => (
+                                    {moves.map((move: Move) => (
                                         <tr key={move.index} className="text-center hover:bg-gray-100">
                                             <td className="py-2 px-4">{move.index}</td>
                                             <td className="py-2 px-4">{move.playerLogin}</td>
@@ -219,7 +257,7 @@ function Match() {
                                                 </span>
                                             </td>
                                             <td className="py-2 px-4">({move.x}, {move.y})</td>
-                                            <td className="py-2 px-4">{new Date(move.createdAt).toLocaleTimeString()}</td>
+                                            <td className="py-2 px-4">{new Date(move.createdAt).toLocaleString()}</td>
                                         </tr>
                                     ))}
                                 </tbody>
