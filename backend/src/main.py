@@ -24,7 +24,7 @@ load_dotenv()
 
 from fastapi.middleware.cors import CORSMiddleware
 
-from .models import (
+from .schemas import (
     AuthToken,
     ErrorResponse,
     HotseatMatchRequest,
@@ -44,6 +44,12 @@ from .models import (
     User,
     UserStats,
 )
+
+from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
+from .database import get_db
+from .models import Gamer
+from sqlalchemy import select
 
 app = FastAPI(
     title='TicTacToe_Web REST API',
@@ -89,8 +95,10 @@ async def _shutdown():
 
 bearer = HTTPBearer(auto_error=True)
 
-def get_user_from_access(credentials: HTTPAuthorizationCredentials = Depends(bearer)) -> UserInternal:
+def get_user_from_access(credentials: HTTPAuthorizationCredentials = Depends(bearer),
+                         db: Session = Depends(get_db)) -> Gamer:
     token = credentials.credentials
+
     try:
         payload = decode_access_token(token)
     except JWTError:
@@ -100,17 +108,24 @@ def get_user_from_access(credentials: HTTPAuthorizationCredentials = Depends(bea
     if not sub or not sub.isdigit():
         raise HTTPException(status_code=401, detail="Invalid token")
 
-    user = users.get(int(sub))
+    user_id = int(sub)
+
+    result = db.execute(select(Gamer).where(Gamer.id == user_id))
+    user = result.scalar_one_or_none()
+
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
+
     return user
 
 
 
 
 @app.post("/auth/login", tags=["Auth"])
-async def login_user(body: LoginRequest, response: Response) -> Union[AuthToken, ErrorResponse]:
-    user = next((u for u in users.values() if u.username == body.username), None)
+async def login_user(body: LoginRequest, response: Response, db: Session = Depends(get_db)) -> Union[AuthToken, ErrorResponse]:
+    result = db.execute(select(Gamer).where(Gamer.username == body.username))
+    user = result.scalar_one_or_none()
+
     if user is None or not verify_password(body.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
@@ -173,7 +188,6 @@ async def refresh_access(request: Request, response: Response) -> Union[AuthToke
 
 
 
-
 @app.post("/auth/logout", tags=["Auth"])
 async def logout_user(request: Request, response: Response):
     refresh = request.cookies.get(REFRESH_COOKIE_NAME)
@@ -186,20 +200,24 @@ async def logout_user(request: Request, response: Response):
 
 
 @app.post('/auth/register', status_code=201, tags=['Auth'])
-async def register_user(body: RegisterRequest, response: Response) -> Union[AuthToken, ErrorResponse]:
-    global next_user_id
-    for u in users.values():
-        if u.username == body.username:
-            raise HTTPException(status_code=409, detail="User already exists")
-    user_id = next_user_id
-    next_user_id += 1
+async def register_user(body: RegisterRequest, response: Response, db: Session = Depends(get_db)) -> Union[AuthToken, ErrorResponse]:
+    existing_user = db.execute(
+        select(Gamer).where(Gamer.username == body.username)
+    ).scalar_one_or_none()
+
+    if existing_user:
+        raise HTTPException(status_code=409, detail="User already exists")
+
     password_hash = hash_password(body.password)
-    new_user = UserInternal(
-        id=user_id,
+
+    new_user = Gamer(
         username=body.username,
         password_hash=password_hash,
     )
-    users[user_id] = new_user
+
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
 
 
     # Auto log in
@@ -229,12 +247,84 @@ async def register_user(body: RegisterRequest, response: Response) -> Union[Auth
 
 
 
+
+@app.get('/users/me', response_model=User, tags=['Users'])
+async def get_current_user(user: Gamer = Depends(get_user_from_access)) -> User:
+    return User(
+        id=user.id,
+        username=user.username,
+        level=user.level,
+        createdAt=user.created_at
+    )
+
+
+
+@app.patch(
+    '/users/me',
+    response_model=User,
+    responses={'400': {'model': ErrorResponse}, '401': {'model': ErrorResponse}},
+    tags=['Users'],
+)
+async def update_current_user(body: UpdateUserRequest) -> Union[User, ErrorResponse]:
+    """
+    Update the authenticated user's profile
+    """
+    pass
+
+
+@app.get(
+    '/users/me/matches',
+    response_model=List[MatchSummary],
+    responses={'401': {'model': ErrorResponse}},
+    tags=['Users', 'Matches'],
+)
+async def get_user_matches(
+    mode: Optional[Mode] = None,
+    result: Optional[Result1] = None,
+    from_: Optional[date] = Query(None, alias='from'),
+    to: Optional[date] = None,
+    limit: Optional[conint(ge=1, le=100)] = 20,
+) -> Union[List[MatchSummary], ErrorResponse]:
+    """
+    Get match history of the authenticated user
+    """
+    pass
+
+
+@app.get(
+    '/users/me/stats',
+    response_model=UserStats,
+    responses={'401': {'model': ErrorResponse}},
+    tags=['Users', 'Stats'],
+)
+async def get_user_stats() -> Union[UserStats, ErrorResponse]:
+    """
+    Get aggregated statistics of the authenticated user
+    """
+    pass
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 @app.get('/leaderboard', response_model=List[LeaderboardEntry], tags=['Stats'])
 async def get_leaderboard() -> List[LeaderboardEntry]:
     """
     Get global leaderboard
     """
     pass
+
+
 
 
 @app.get(
@@ -390,54 +480,3 @@ async def get_matchmaking_status() -> Union[MatchmakingStatus, ErrorResponse]:
     """
     pass
 
-
-
-@app.get('/users/me', response_model=User, tags=['Users'])
-async def get_current_user(user: UserInternal = Depends(get_user_from_access)) -> Union[User, ErrorResponse]:
-    return User(id=user.id, username=user.username, level=user.level, createdAt=user.createdAt)
-
-
-
-@app.patch(
-    '/users/me',
-    response_model=User,
-    responses={'400': {'model': ErrorResponse}, '401': {'model': ErrorResponse}},
-    tags=['Users'],
-)
-async def update_current_user(body: UpdateUserRequest) -> Union[User, ErrorResponse]:
-    """
-    Update the authenticated user's profile
-    """
-    pass
-
-
-@app.get(
-    '/users/me/matches',
-    response_model=List[MatchSummary],
-    responses={'401': {'model': ErrorResponse}},
-    tags=['Users', 'Matches'],
-)
-async def get_user_matches(
-    mode: Optional[Mode] = None,
-    result: Optional[Result1] = None,
-    from_: Optional[date] = Query(None, alias='from'),
-    to: Optional[date] = None,
-    limit: Optional[conint(ge=1, le=100)] = 20,
-) -> Union[List[MatchSummary], ErrorResponse]:
-    """
-    Get match history of the authenticated user
-    """
-    pass
-
-
-@app.get(
-    '/users/me/stats',
-    response_model=UserStats,
-    responses={'401': {'model': ErrorResponse}},
-    tags=['Users', 'Stats'],
-)
-async def get_user_stats() -> Union[UserStats, ErrorResponse]:
-    """
-    Get aggregated statistics of the authenticated user
-    """
-    pass
