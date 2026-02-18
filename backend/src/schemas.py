@@ -2,60 +2,61 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional
+from typing import Optional, List
 
 from pydantic import BaseModel, Field, conint, constr
 
 
+# Errors
+
+class Error(BaseModel):
+    code: int
+    message: str
+
+class ErrorResponse(BaseModel):
+    error: Error
+
+
+# Enums (same as DB)
+
 
 class TypeGame(str, Enum):
-    ONLINE = "Online"
-    HOTSEAT = "Hotseat"
+    Online = "Online"
+    Hotseat = "Hotseat"
+
 
 class OX(str, Enum):
     X = "X"
     O = "O"
 
+
 class GameMode(str, Enum):
-    FIXED = "Fixed"
-    INFINITY = "Infinity"
+    Fixed = "Fixed"
+    Infinity = "Infinity"
+
 
 class ResGame(str, Enum):
-    WIN_X = "WinX"
-    WIN_O = "WinO"
-    ACTUAL = "Actual"
-    DRAW = "Draw"
-    FREEZE = "Freeze"
-
-class Pos(BaseModel):
-    x: int
-    y: int
+    WinX = "WinX"
+    WinO = "WinO"
+    Actual = "Actual"
+    Draw = "Draw"
+    Freeze = "Freeze"
 
 
+# Auth / User
 
-
-
-class Error(BaseModel):
-    code: int = Field(..., description='Application-specific error code.')
-    message: str = Field(..., description='Human-readable error message.')
-
-
-class ErrorResponse(BaseModel):
-    error: Error
+class AuthToken(BaseModel):
+    accessToken: str = Field(..., description="JWT access token.")
+    tokenType: str = Field("Bearer", description='Token type, usually "Bearer".')
+    expiresIn: Optional[int] = Field(None, description="Access token lifetime in seconds.")
 
 
 class User(BaseModel):
     id: int
     username: str
     level: int
-    createdAt: datetime
+    created_at: datetime
 
-class UserInternal(BaseModel):
-    id: int
-    username: constr(min_length=3, max_length=32)
-    password_hash: str
-    level: int = 1
-    createdAt: datetime = Field(default_factory=datetime.utcnow)
 
 class RegisterRequest(BaseModel):
     username: constr(min_length=3, max_length=32)
@@ -67,78 +68,68 @@ class LoginRequest(BaseModel):
     password: str
 
 
-class AuthToken(BaseModel):
-    accessToken: str = Field(..., description='JWT access token.')
-    tokenType: str = Field(..., description='Token type, usually "Bearer".')
-    expiresIn: Optional[int] = Field(
-        None, description='Access token lifetime in seconds.'
-    )
-
-
 class UpdateUserRequest(BaseModel):
     password: Optional[constr(min_length=8, max_length=128)] = None
 
 
-class FirstPlayerSymbol(Enum):
-    X = 'X'
-    O = 'O'
+
+# Game / Move
+
+class GameCreateRequest(BaseModel):
+    f_gamer_id: Optional[int] = None
+    s_gamer_id: Optional[int] = None
+
+    f_ox: OX
+    dimensions: conint(gt=0) = 3
+    mode: GameMode = GameMode.Fixed
+    type: TypeGame = TypeGame.Online
 
 
-class Mode(Enum):
-    fixed = 'fixed'
-    infinite = 'infinite'
-
-
-class Status(Enum):
-    waiting = 'waiting'
-    in_progress = 'in_progress'
-    paused = 'paused'
-    finished = 'finished'
-
-
-class Result(Enum):
-    first_win = 'first_win'
-    second_win = 'second_win'
-    draw = 'draw'
-    NoneType_None = None
-
-
-class Match(BaseModel):
+class GameResponse(BaseModel):
     id: int
-    firstPlayerId: Optional[int] = None
-    secondPlayerId: Optional[int] = None
-    currentPlayerId: Optional[int] = None
-    firstPlayerSymbol: Optional[FirstPlayerSymbol] = None
-    dimensions: conint(ge=3) = Field(
-        ..., description='Board dimension (N for an N×N board).'
-    )
-    mode: Mode = Field(
-        ..., description='Match mode – fixed-size board or infinite/expanding board.'
-    )
-    status: Status
-    result: Optional[Result] = Field(
-        None, description='Final match result, null if not finished.'
-    )
-    board: Optional[List[List[Optional[str]]]] = Field(
-        None,
-        description='Current board state represented as a 2D array board[row][column]. Each cell is either "X", "O" or null.\n',
-    )
+    f_gamer_id: Optional[int] = None
+    s_gamer_id: Optional[int] = None
+
+    f_ox: OX
+    current_ox: Optional[OX] = None
+
+    result: ResGame
+    dimensions: int
+    mode: GameMode
+    type: TypeGame
 
 
-class Result1(Enum):
-    win = 'win'
-    loss = 'loss'
-    draw = 'draw'
+class MoveCreateRequest(BaseModel):
+    x: conint(ge=0)
+    y: conint(ge=0)
+
+
+class MoveResponse(BaseModel):
+    id: int
+    owner_id: int
+    game_id: int
+    x: int
+    y: int
+    played_at: datetime
+
+
+class GameWithMovesResponse(GameResponse):
+    moves: List[MoveResponse] = Field(default_factory=list)
+
+
+
+
+
 
 
 class MatchSummary(BaseModel):
     id: int
     opponentLogin: Optional[str] = None
     mode: Mode
-    dimensions: conint(ge=1)
+    dimensions: int
     result: Result1
-    startedAt: datetime
-    finishedAt: Optional[datetime] = None
+    startedAt: int  # ms
+    finishedAt: Optional[int] = None  # ms
 
 
 class MoveRequest(BaseModel):
@@ -146,58 +137,94 @@ class MoveRequest(BaseModel):
     y: conint(ge=0)
 
 
-class Symbol(Enum):
-    X = 'X'
-    O = 'O'
-
-
-class Move(BaseModel):
-    index: int = Field(..., description='Sequential move number starting from 1.')
-    matchId: int
-    playerId: int
-    symbol: Symbol
-    x: int
-    y: int
-    createdAt: datetime
-
 
 class UserStats(BaseModel):
     totalMatches: int
     wins: int
     losses: int
     draws: int
-    winRate: float = Field(..., description='Win rate in range [0, 1].')
+    winRate: float
     level: int
-
 
 class LeaderboardEntry(BaseModel):
     rank: int
-    userId: int
+    user_id: int
     username: str
     level: int
-    wins: Optional[int] = None
-    losses: Optional[int] = None
-    draws: Optional[int] = None
+    wins: int = 0
+    losses: int = 0
+    draws: int = 0
 
 
-class Status1(Enum):
-    idle = 'idle'
-    searching = 'searching'
-    match_found = 'match_found'
+class FirstPlayerSymbol(str, Enum):
+    X = "X"
+    O = "O"
 
 
-class MatchmakingStatus(BaseModel):
-    status: Status1
-    matchId: Optional[int] = Field(
-        None, description='Present when a match has been found.'
-    )
+class Mode(str, Enum):
+    fixed = "fixed"
+    infinite = "infinite"
+
+class Status(str, Enum):
+    waiting = "waiting"
+    in_progress = "in_progress"
+    frozen = "frozen"
+    finished = "finished"
+
+
+class Result(str, Enum):
+    first_win = "first_win"
+    second_win = "second_win"
+    draw = "draw"
+
+
+class Match(BaseModel):
+    id: int
+    firstPlayerLogin: Optional[str] = None
+    secondPlayerLogin: Optional[str] = None
+    currentPlayerLogin: Optional[str] = None
+    firstPlayerSymbol: FirstPlayerSymbol
+    dimensions: conint(ge=3)
+    mode: Mode
+    status: Status
+    result: Optional[Result] = None
+    board: Optional[List[List[Optional[str]]]] = None
+
+
+class Symbol(str, Enum):
+    X = "X"
+    O = "O"
+
+
+class Move(BaseModel):
+    index: int
+    matchId: int
+    playerLogin: str
+    symbol: Symbol
+    x: int
+    y: int
+    createdAt: int = Field(..., description="Unix timestamp in milliseconds")
+
+
+class MatchmakingState(str, Enum):
+    Idle = "Idle"
+    Searching = "Searching"
+    MatchFound = "MatchFound"
 
 
 class JoinMatchmakingRequest(BaseModel):
-    mode: Mode
+    mode: GameMode
     dimensions: conint(ge=3)
 
 
 class HotseatMatchRequest(BaseModel):
-    dimensions: conint(ge=3)
-    mode: Mode
+    dimensions: conint(ge=3) = 3
+    mode: Mode = Mode.fixed
+
+class Result1(str, Enum):
+    win = "win"
+    loss = "loss"
+    draw = "draw"
+    frozen = "frozen"
+
+

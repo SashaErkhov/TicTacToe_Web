@@ -5,6 +5,7 @@ from sqlalchemy import (
     CheckConstraint, DateTime
 )
 from sqlalchemy.dialects.postgresql import ENUM, JSON
+from sqlalchemy.dialects.postgresql import ENUM as PG_ENUM
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -14,25 +15,43 @@ from .database import Base
 
 # Enums
 
-class TypeGame(enum.Enum):
-    ONLINE = "Online"
-    HOTSEAT = "Hotseat"
+class TypeGame(str, enum.Enum):
+    Online = "Online"
+    Hotseat = "Hotseat"
 
-class OX(enum.Enum):
+class OX(str, enum.Enum):
     X = "X"
     O = "O"
 
-class GameMode(enum.Enum):
-    FIXED = "Fixed"
-    INFINITY = "Infinity"
+class GameMode(str, enum.Enum):
+    Fixed = "Fixed"
+    Infinity = "Infinity"
 
-class ResGame(enum.Enum):
-    WIN_X = "WinX"
-    WIN_O = "WinO"
-    ACTUAL = "Actual"
-    DRAW = "Draw"
-    FREEZE = "Freeze"
+class ResGame(str, enum.Enum):
+    WinX = "WinX"
+    WinO = "WinO"
+    Actual = "Actual"
+    Draw = "Draw"
+    Freeze = "Freeze"
 
+
+
+pg_type_game = PG_ENUM(
+    TypeGame, name="type_game", create_type=False,
+    values_callable=lambda x: [e.value for e in x],
+)
+pg_ox = PG_ENUM(
+    OX, name="ox", create_type=False,
+    values_callable=lambda x: [e.value for e in x],
+)
+pg_game_mode = PG_ENUM(
+    GameMode, name="game_mode", create_type=False,
+    values_callable=lambda x: [e.value for e in x],
+)
+pg_res_game = PG_ENUM(
+    ResGame, name="res_game", create_type=False,
+    values_callable=lambda x: [e.value for e in x],
+)
 
 
 # Tables
@@ -46,31 +65,29 @@ class Gamer(Base):
     level: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False
-    )
-
-'''
-    games_as_first: Mapped[list["Game"]] = relationship(
-        foreign_keys="Game.f_gamer_id",
-        back_populates="first_gamer"
-    )
-
-    games_as_second: Mapped[list["Game"]] = relationship(
-        foreign_keys="Game.s_gamer_id",
-        back_populates="second_gamer"
-    )
-
-    moves: Mapped[list["Move"]] = relationship(
-        back_populates="gamer"
+        nullable=False,
+        server_default=func.now()
     )
 
     __table_args__ = (
         CheckConstraint("level >= 0", name="gamers_level_nonnegative"),
     )
-'''
 
-'''
+    # relationships
+    first_games: Mapped[list["Game"]] = relationship(
+        back_populates="first_gamer",
+        foreign_keys="Game.f_gamer_id",
+    )
+    second_games: Mapped[list["Game"]] = relationship(
+        back_populates="second_gamer",
+        foreign_keys="Game.s_gamer_id",
+    )
+    moves: Mapped[list["Move"]] = relationship(
+        back_populates="owner",
+        cascade="all, delete-orphan",
+    )
+
+
 class Game(Base):
     __tablename__ = "games"
 
@@ -78,69 +95,42 @@ class Game(Base):
 
     f_gamer_id: Mapped[int | None] = mapped_column(
         BigInteger,
-        ForeignKey("gamers.id", ondelete="SET NULL", onupdate="CASCADE")
+        ForeignKey("gamers.id", onupdate="CASCADE", ondelete="SET NULL"),
+        nullable=True,
     )
-
     s_gamer_id: Mapped[int | None] = mapped_column(
         BigInteger,
-        ForeignKey("gamers.id", ondelete="SET NULL", onupdate="CASCADE")
+        ForeignKey("gamers.id", onupdate="CASCADE", ondelete="SET NULL"),
+        nullable=True,
     )
 
-    f_ox: Mapped[OX] = mapped_column(
-        ENUM(OX, name="ox", create_type=True),
-        nullable=False
-    )
+    f_ox: Mapped[OX] = mapped_column("f_ox", pg_ox, nullable=False)
+    current_ox: Mapped[OX | None] = mapped_column("current_ox", pg_ox, nullable=True)
 
-    current_ox: Mapped[OX | None] = mapped_column(
-        ENUM(OX, name="ox", create_type=False)
-    )
+    result: Mapped[ResGame] = mapped_column(pg_res_game, nullable=False)
 
-    result: Mapped[ResGame] = mapped_column(
-        ENUM(ResGame, name="res_game", create_type=True),
-        nullable=False
-    )
-
-    dimensions: Mapped[int] = mapped_column(Integer, default=3, nullable=False)
-
-    mode: Mapped[GameMode] = mapped_column(
-        ENUM(GameMode, name="game_mode", create_type=True),
-        default=GameMode.FIXED,
-        nullable=False
-    )
-
-    type: Mapped[TypeGame] = mapped_column(
-        ENUM(TypeGame, name="type_game", create_type=True),
-        default=TypeGame.ONLINE,
-        nullable=False
-    )
-
-    first_gamer: Mapped["Gamer | None"] = relationship(
-        foreign_keys=[f_gamer_id],
-        back_populates="games_as_first"
-    )
-
-    second_gamer: Mapped["Gamer | None"] = relationship(
-        foreign_keys=[s_gamer_id],
-        back_populates="games_as_second"
-    )
-
-    moves: Mapped[list["Move"]] = relationship(
-        back_populates="game",
-        cascade="all, delete-orphan"
-    )
+    dimensions: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    mode: Mapped[GameMode] = mapped_column(pg_game_mode, nullable=False, default=GameMode.Fixed)
+    type: Mapped[TypeGame] = mapped_column(pg_type_game, nullable=False, default=TypeGame.Online)
 
     __table_args__ = (
         CheckConstraint("dimensions > 0", name="games_dimensions"),
     )
 
-    @hybrid_property
-    def is_full(self):
-        return self.f_gamer_id is not None and self.s_gamer_id is not None
+    # relationships
+    first_gamer: Mapped[Gamer | None] = relationship(
+        back_populates="first_games",
+        foreign_keys=[f_gamer_id],
+    )
+    second_gamer: Mapped[Gamer | None] = relationship(
+        back_populates="second_games",
+        foreign_keys=[s_gamer_id],
+    )
 
-    @hybrid_property
-    def is_empty(self):
-        return self.f_gamer_id is None and self.s_gamer_id is None
-
+    moves: Mapped[list["Move"]] = relationship(
+        back_populates="game",
+        cascade="all, delete-orphan",
+    )
 
 
 
@@ -152,26 +142,26 @@ class Move(Base):
 
     owner_id: Mapped[int] = mapped_column(
         BigInteger,
-        ForeignKey("gamers.id", ondelete="CASCADE", onupdate="CASCADE"),
-        nullable=False
+        ForeignKey("gamers.id", onupdate="CASCADE", ondelete="CASCADE"),
+        nullable=False,
     )
-
     game_id: Mapped[int] = mapped_column(
         BigInteger,
-        ForeignKey("games.id", ondelete="CASCADE", onupdate="CASCADE"),
-        nullable=False
+        ForeignKey("games.id", onupdate="CASCADE", ondelete="CASCADE"),
+        nullable=False,
     )
 
-    coordinates: Mapped[dict] = mapped_column(JSON, nullable=False)
+    x: Mapped[int] = mapped_column(Integer, nullable=False)
+    y: Mapped[int] = mapped_column(Integer, nullable=False)
 
-    played_at: Mapped[DateTime] = mapped_column(
+    played_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
+        nullable=False,
         server_default=func.now(),
-        nullable=False
     )
 
-    gamer: Mapped["Gamer"] = relationship(back_populates="moves")
-    game: Mapped["Game"] = relationship(back_populates="moves")
+    owner: Mapped[Gamer] = relationship(back_populates="moves")
+    game: Mapped[Game] = relationship(back_populates="moves")
 
 
-'''
+

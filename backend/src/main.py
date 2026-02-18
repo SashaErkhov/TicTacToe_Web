@@ -9,6 +9,7 @@ from fastapi import Depends, Response, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError
 
+from .game_logic import mode_api_to_db
 from .redis_client import get_redis
 from .auth.utils_auth import (
     hash_password, verify_password,
@@ -29,16 +30,10 @@ from .schemas import (
     JoinMatchmakingRequest,
     LeaderboardEntry,
     LoginRequest,
-    Match,
-    MatchmakingStatus,
     MatchSummary,
-    Mode,
-    Move,
     MoveRequest,
     RegisterRequest,
-    Result1,
     UpdateUserRequest,
-    UserInternal,
     User,
     UserStats,
 )
@@ -46,8 +41,10 @@ from .schemas import (
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from .database import get_db
-from .models import Gamer
+from .models import Game, Move, Gamer, OX, ResGame, TypeGame
+from .schemas import Match, Move as MoveSchema, MoveRequest, HotseatMatchRequest, FirstPlayerSymbol, Symbol, Mode, Result, Result1
 from sqlalchemy import select
+from .game_logic import *
 
 app = FastAPI(
     title='TicTacToe_Web REST API',
@@ -117,6 +114,43 @@ def get_user_from_access(credentials: HTTPAuthorizationCredentials = Depends(bea
     return user
 
 
+async def _match_response(db: Session, match_id: int) -> Match:
+    g = db.execute(select(Game).where(Game.id == match_id)).scalar_one_or_none()
+    if not g:
+        raise HTTPException(status_code=404, detail="Match not found")
+
+    # usernames
+    ids = [i for i in (g.f_gamer_id, g.s_gamer_id) if i is not None]
+    gamers = {}
+    if ids:
+        rows = db.execute(select(Gamer).where(Gamer.id.in_(ids))).scalars().all()
+        gamers = {u.id: u.username for u in rows}
+
+    first_login = gamers.get(g.f_gamer_id) if g.f_gamer_id else None
+    second_login = gamers.get(g.s_gamer_id) if g.s_gamer_id else None
+
+    moves = db.execute(
+        select(Move).where(Move.game_id == g.id).order_by(Move.played_at, Move.id)
+    ).scalars().all()
+
+    syms = infer_symbols_for_moves(g, moves)
+    board = build_board(g.dimensions, moves, syms)
+
+    st = status_from_game(g)
+    res = result_from_game(g)
+
+    return Match(
+        id=g.id,
+        firstPlayerLogin=first_login,
+        secondPlayerLogin=second_login,
+        currentPlayerLogin=current_player_login(g, first_login, second_login),
+        firstPlayerSymbol=FirstPlayerSymbol(g.f_ox.value),
+        dimensions=g.dimensions,
+        mode=mode_db_to_api(g.mode),
+        status=st,
+        result=res,
+        board=board,
+    )
 
 
 @app.post("/auth/login", tags=["Auth"])
@@ -259,7 +293,7 @@ async def get_current_user(user: Gamer = Depends(get_user_from_access)) -> User:
         id=user.id,
         username=user.username,
         level=user.level,
-        createdAt=user.created_at
+        created_at=user.created_at
     )
 
 
@@ -277,36 +311,184 @@ async def update_current_user(body: UpdateUserRequest) -> Union[User, ErrorRespo
     pass
 
 
+from datetime import datetime, timezone
+from sqlalchemy import select, func, or_, case
+
+def _ms(dt: Optional[datetime]) -> Optional[int]:
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return int(dt.timestamp() * 1000)
+
+def _opposite(sym: OX) -> OX:
+    return OX.O if sym == OX.X else OX.X
+
+def _mode_db_to_api(m: GameMode) -> Mode:
+    return Mode.fixed if m == GameMode.Fixed else Mode.infinite
+
+def _user_symbol(game: Game, user_id: int) -> Optional[OX]:
+    if game.f_gamer_id == user_id:
+        return game.f_ox
+    if game.s_gamer_id == user_id:
+        return _opposite(game.f_ox)
+    return None
+
+def _user_result(game: Game, user_id: int) -> Optional[Result1]:
+    if game.result == ResGame.Actual:
+        return None
+
+    if game.result == ResGame.Draw:
+        return Result1.draw
+
+    if game.result == ResGame.Freeze:
+        return Result1.frozen
+
+    sym = _user_symbol(game, user_id)
+    if sym is None:
+        return None
+
+    if game.result == ResGame.WinX:
+        return Result1.win if sym == OX.X else Result1.loss
+    if game.result == ResGame.WinO:
+        return Result1.win if sym == OX.O else Result1.loss
+
+    return None
+
 @app.get(
-    '/users/me/matches',
+    "/users/me/matches",
     response_model=List[MatchSummary],
-    responses={'401': {'model': ErrorResponse}},
-    tags=['Users', 'Matches'],
+    tags=["Users", "Matches"],
 )
-async def get_user_matches(
-    mode: Optional[Mode] = None,
-    result: Optional[Result1] = None,
-    from_: Optional[date] = Query(None, alias='from'),
-    to: Optional[date] = None,
-    limit: Optional[conint(ge=1, le=100)] = 20,
-) -> Union[List[MatchSummary], ErrorResponse]:
-    """
-    Get match history of the authenticated user
-    """
-    pass
+def get_user_matches(
+    user: Gamer = Depends(get_user_from_access),
+    db: Session = Depends(get_db),
+    mode: Optional[Mode] = Query(None),
+    result: Optional[Result1] = Query(None),
+    from_ms: Optional[int] = Query(None, alias="from"),
+    to_ms: Optional[int] = Query(None, alias="to"),
+    from_date: Optional[int] = Query(None, alias="from_date"),
+    to_date: Optional[int] = Query(None, alias="to_date"),
+    limit: int = Query(20, ge=1, le=100),
+) -> Union[List[MatchSummary], None]:
+    if from_ms is None:
+        from_ms = from_date
+    if to_ms is None:
+        to_ms = to_date
+
+    moves_agg = (
+        select(
+            Move.game_id.label("game_id"),
+            func.min(Move.played_at).label("started_at"),
+            func.max(Move.played_at).label("finished_at"),
+            func.count(Move.id).label("moves_count"),
+        )
+        .group_by(Move.game_id)
+        .subquery()
+    )
+
+    opponent_id_expr = case(
+        (Game.f_gamer_id == user.id, Game.s_gamer_id),
+        else_=Game.f_gamer_id,
+    )
+
+    stmt = (
+        select(
+            Game,
+            func.coalesce(moves_agg.c.started_at, func.now()).label("started_at"),
+            moves_agg.c.finished_at.label("finished_at"),
+            Gamer.username.label("opponent_login"),
+        )
+        .outerjoin(moves_agg, moves_agg.c.game_id == Game.id)
+        .outerjoin(Gamer, Gamer.id == opponent_id_expr)
+        .where(or_(Game.f_gamer_id == user.id, Game.s_gamer_id == user.id))
+        .where(Game.result != ResGame.Actual)
+        .order_by(func.coalesce(moves_agg.c.started_at, func.now()).desc())
+        .limit(limit)
+    )
+
+    if mode is not None:
+        if mode == Mode.fixed:
+            stmt = stmt.where(Game.mode == GameMode.Fixed)
+        else:
+            stmt = stmt.where(Game.mode == GameMode.Infinity)
+
+    if from_ms is not None:
+        from_dt = datetime.fromtimestamp(from_ms / 1000, tz=timezone.utc)
+        stmt = stmt.where(func.coalesce(moves_agg.c.started_at, func.now()) >= from_dt)
+
+    if to_ms is not None:
+        to_dt = datetime.fromtimestamp(to_ms / 1000, tz=timezone.utc)
+        stmt = stmt.where(func.coalesce(moves_agg.c.started_at, func.now()) <= to_dt)
+
+    rows = db.execute(stmt).all()
+
+    out: List[MatchSummary] = []
+    for game, started_at, finished_at, opponent_login in rows:
+        r = _user_result(game, user.id)
+        if r is None:
+            continue
+
+        if result is not None and r != result:
+            continue
+
+        if game.type == TypeGame.Hotseat:
+            opponent_login = None
+
+        out.append(
+            MatchSummary(
+                id=game.id,
+                opponentLogin=opponent_login,
+                mode=_mode_db_to_api(game.mode),
+                dimensions=game.dimensions,
+                result=r,
+                startedAt=_ms(started_at) or 0,
+                finishedAt=_ms(finished_at),
+            )
+        )
+
+    return out
+
 
 
 @app.get(
-    '/users/me/stats',
+    "/users/me/stats",
     response_model=UserStats,
-    responses={'401': {'model': ErrorResponse}},
-    tags=['Users', 'Stats'],
+    tags=["Users", "Stats"],
 )
-async def get_user_stats() -> Union[UserStats, ErrorResponse]:
-    """
-    Get aggregated statistics of the authenticated user
-    """
-    pass
+def get_user_stats(
+    user: Gamer = Depends(get_user_from_access),
+    db: Session = Depends(get_db),
+) -> UserStats:
+
+    games = db.execute(
+        select(Game)
+        .where(or_(Game.f_gamer_id == user.id, Game.s_gamer_id == user.id))
+        .where(Game.result != ResGame.Actual)
+    ).scalars().all()
+
+    wins = losses = draws = 0
+
+    for g in games:
+        r = _user_result(g, user.id)
+        if r == Result1.win:
+            wins += 1
+        elif r == Result1.loss:
+            losses += 1
+        elif r == Result1.draw:
+            draws += 1
+
+    total = wins + losses + draws
+    win_rate = (wins / total) if total > 0 else 0.0
+
+    return UserStats(
+        totalMatches=total,
+        wins=wins,
+        losses=losses,
+        draws=draws,
+        winRate=win_rate,
+        level=user.level,
+    )
 
 
 
@@ -335,125 +517,254 @@ async def get_leaderboard() -> List[LeaderboardEntry]:
 @app.get(
     '/matches/{matchId}',
     response_model=Match,
-    responses={'401': {'model': ErrorResponse}, '404': {'model': ErrorResponse}},
     tags=['Matches'],
 )
 async def get_match_by_id(
-    match_id: int = Path(..., alias='matchId')
-) -> Union[Match, ErrorResponse]:
-    """
-    Get match state
-    """
-    pass
+    match_id: int = Path(..., alias='matchId'),
+    db: Session = Depends(get_db),
+    user: Gamer = Depends(get_user_from_access)
+):
+    g = db.execute(select(Game).where(Game.id == match_id)).scalar_one_or_none()
+    if not g:
+        raise HTTPException(status_code=404, detail="Match not found")
+
+    if user.id not in (g.f_gamer_id, g.s_gamer_id):
+        raise HTTPException(status_code=404, detail="Match not found")
+
+    return await _match_response(db, match_id)
 
 
 @app.post(
-    '/matches/{matchId}/moves',
+    "/matches/{matchId}/moves",
     response_model=Match,
-    responses={
-        '400': {'model': ErrorResponse},
-        '401': {'model': ErrorResponse},
-        '404': {'model': ErrorResponse},
-    },
-    tags=['Matches', 'Moves'],
+    tags=["Matches", "Moves"],
 )
 async def make_move(
-    match_id: int = Path(..., alias='matchId'), body: MoveRequest = ...
-) -> Union[Match, ErrorResponse]:
-    """
-    Make a move
-    """
-    pass
+    match_id: int = Path(..., alias="matchId"),
+    body: MoveRequest = ...,
+    db: Session = Depends(get_db),
+    user: Gamer = Depends(get_user_from_access),
+):
+    g = db.execute(
+        select(Game).where(Game.id == match_id).with_for_update()
+    ).scalar_one_or_none()
+
+    if not g:
+        raise HTTPException(status_code=404, detail="Match not found")
+
+    if user.id not in (g.f_gamer_id, g.s_gamer_id):
+        raise HTTPException(status_code=404, detail="Match not found")
+
+    st = status_from_game(g)
+    if st == Status.waiting:
+        raise HTTPException(status_code=400, detail="Match is waiting for opponent")
+    if g.result == ResGame.Freeze:
+        raise HTTPException(status_code=400, detail="Match is frozen")
+    if g.result in (ResGame.WinX, ResGame.WinO, ResGame.Draw):
+        raise HTTPException(status_code=400, detail="Match already finished")
+
+    if g.mode == GameMode.Fixed:
+        if body.x >= g.dimensions or body.y >= g.dimensions:
+            raise HTTPException(status_code=400, detail="Move is out of board")
+    else:
+        if body.x >= g.dimensions or body.y >= g.dimensions:
+            g.dimensions = max(g.dimensions, body.x + 1, body.y + 1)
+
+    if g.current_ox is None:
+        g.current_ox = g.f_ox
+
+    expected = g.current_ox
+
+    if g.type == TypeGame.Hotseat:
+        player_sym = expected
+    else:
+        if user.id == g.f_gamer_id:
+            player_sym = g.f_ox
+        else:
+            player_sym = opposite_ox(g.f_ox)
+
+        if player_sym != expected:
+            raise HTTPException(status_code=400, detail="Not your turn")
+
+    exists = db.execute(
+        select(Move.id).where(Move.game_id == g.id, Move.x == body.x, Move.y == body.y).limit(1)
+    ).scalar_one_or_none()
+    if exists:
+        raise HTTPException(status_code=400, detail="Cell already occupied")
+
+    mv = Move(owner_id=user.id, game_id=g.id, x=body.x, y=body.y)
+    db.add(mv)
+    db.flush()
+
+    moves = db.execute(
+        select(Move).where(Move.game_id == g.id).order_by(Move.played_at, Move.id)
+    ).scalars().all()
+    syms = infer_symbols_for_moves(g, moves)
+
+    cells = {(m.x, m.y): s.value for m, s in zip(moves, syms)}
+    played_sym = player_sym.value
+
+    if is_win(cells, body.x, body.y, played_sym, g):
+        g.result = ResGame.WinX if played_sym == "X" else ResGame.WinO
+        g.current_ox = None
+    else:
+        if g.mode == GameMode.Fixed and len(moves) >= g.dimensions * g.dimensions:
+            g.result = ResGame.Draw
+            g.current_ox = None
+        else:
+            g.current_ox = opposite_ox(expected)
+
+    db.commit()
+    return await _match_response(db, g.id)
+
 
 
 @app.get(
-    '/matches/{matchId}/moves',
-    response_model=List[Move],
-    responses={'401': {'model': ErrorResponse}, '404': {'model': ErrorResponse}},
-    tags=['Matches', 'Moves'],
+    "/matches/{matchId}/moves",
+    response_model=list[MoveSchema],
+    tags=["Matches", "Moves"],
 )
 async def get_match_moves(
-    match_id: int = Path(..., alias='matchId')
-) -> Union[List[Move], ErrorResponse]:
-    """
-    Get match move history
-    """
-    pass
+    match_id: int = Path(..., alias="matchId"),
+    db: Session = Depends(get_db),
+    user: Gamer = Depends(get_user_from_access),
+):
+    g = db.execute(select(Game).where(Game.id == match_id)).scalar_one_or_none()
+    if not g:
+        raise HTTPException(status_code=404, detail="Match not found")
+    if user.id not in (g.f_gamer_id, g.s_gamer_id):
+        raise HTTPException(status_code=404, detail="Match not found")
+
+    # usernames
+    ids = [i for i in (g.f_gamer_id, g.s_gamer_id) if i is not None]
+    rows = db.execute(select(Gamer).where(Gamer.id.in_(ids))).scalars().all()
+    gamers = {u.id: u.username for u in rows}
+
+    moves = db.execute(
+        select(Move).where(Move.game_id == g.id).order_by(Move.played_at, Move.id)
+    ).scalars().all()
+
+    syms = infer_symbols_for_moves(g, moves)
+
+    out: list[MoveSchema] = []
+    for idx, (mv, sym) in enumerate(zip(moves, syms), start=1):
+        out.append(
+            MoveSchema(
+                index=idx,
+                matchId=g.id,
+                playerLogin=gamers.get(mv.owner_id, "unknown"),
+                symbol=Symbol(sym.value),
+                x=mv.x,
+                y=mv.y,
+                createdAt=dt_ms(mv.played_at),
+            )
+        )
+    return out
 
 
-@app.post(
-    '/matches/{matchId}/pause',
-    response_model=Match,
-    responses={'401': {'model': ErrorResponse}, '404': {'model': ErrorResponse}},
-    tags=['Matches'],
-)
+
+@app.post("/matches/{matchId}/pause", response_model=Match, tags=["Matches"])
 async def pause_match(
-    match_id: int = Path(..., alias='matchId')
-) -> Union[Match, ErrorResponse]:
-    """
-    Pause a match
-    """
-    pass
+    match_id: int = Path(..., alias="matchId"),
+    db: Session = Depends(get_db),
+    user: Gamer = Depends(get_user_from_access),
+):
+    g = db.execute(select(Game).where(Game.id == match_id).with_for_update()).scalar_one_or_none()
+    if not g:
+        raise HTTPException(status_code=404, detail="Match not found")
+    if user.id not in (g.f_gamer_id, g.s_gamer_id):
+        raise HTTPException(status_code=404, detail="Match not found")
+    if g.result != ResGame.Actual:
+        raise HTTPException(status_code=400, detail="Cannot pause match in this state")
+
+    g.result = ResGame.Freeze
+    db.commit()
+    return await _match_response(db, g.id)
 
 
-@app.post(
-    '/matches/{matchId}/resign',
-    response_model=Match,
-    responses={'401': {'model': ErrorResponse}, '404': {'model': ErrorResponse}},
-    tags=['Matches'],
-)
-async def resign_match(
-    match_id: int = Path(..., alias='matchId')
-) -> Union[Match, ErrorResponse]:
-    """
-    Resign from a match
-    """
-    pass
 
-
-@app.post(
-    '/matches/{matchId}/resume',
-    response_model=Match,
-    responses={'401': {'model': ErrorResponse}, '404': {'model': ErrorResponse}},
-    tags=['Matches'],
-)
+@app.post("/matches/{matchId}/resume", response_model=Match, tags=["Matches"])
 async def resume_match(
-    match_id: int = Path(..., alias='matchId')
-) -> Union[Match, ErrorResponse]:
-    """
-    Resume a paused match
-    """
-    pass
+    match_id: int = Path(..., alias="matchId"),
+    db: Session = Depends(get_db),
+    user: Gamer = Depends(get_user_from_access),
+):
+    g = db.execute(select(Game).where(Game.id == match_id).with_for_update()).scalar_one_or_none()
+    if not g:
+        raise HTTPException(status_code=404, detail="Match not found")
+    if user.id not in (g.f_gamer_id, g.s_gamer_id):
+        raise HTTPException(status_code=404, detail="Match not found")
+    if g.result != ResGame.Freeze:
+        raise HTTPException(status_code=400, detail="Match is not frozen")
+
+    g.result = ResGame.Actual
+    db.commit()
+    return await _match_response(db, g.id)
+
+
+
+@app.post("/matches/{matchId}/resign", response_model=Match, tags=["Matches"])
+async def resign_match(
+    match_id: int = Path(..., alias="matchId"),
+    db: Session = Depends(get_db),
+    user: Gamer = Depends(get_user_from_access),
+):
+    g = db.execute(select(Game).where(Game.id == match_id).with_for_update()).scalar_one_or_none()
+    if not g:
+        raise HTTPException(status_code=404, detail="Match not found")
+    if user.id not in (g.f_gamer_id, g.s_gamer_id):
+        raise HTTPException(status_code=404, detail="Match not found")
+    if g.result in (ResGame.WinX, ResGame.WinO, ResGame.Draw):
+        raise HTTPException(status_code=400, detail="Match already finished")
+
+    if g.current_ox is None:
+        g.current_ox = g.f_ox
+
+    resigning = g.current_ox
+    winner = opposite_ox(resigning)
+    g.result = ResGame.WinX if winner == OX.X else ResGame.WinO
+    g.current_ox = None
+    db.commit()
+    return await _match_response(db, g.id)
+
 
 
 @app.post(
     '/matchmaking/hotseat',
-    response_model=None,
-    responses={
-        '201': {'model': Match},
-        '400': {'model': ErrorResponse},
-        '401': {'model': ErrorResponse},
-    },
+    response_model=Match,
+    status_code=201,
     tags=['Matchmaking'],
 )
 async def create_hotseat_match(
     body: HotseatMatchRequest,
-) -> Optional[Union[Match, ErrorResponse]]:
-    """
-    Create a hotseat match
-    """
-    pass
+    db: Session = Depends(get_db),
+    user: Gamer = Depends(get_user_from_access)
+):
+    g = Game(
+        f_gamer_id=user.id,
+        s_gamer_id=user.id,
+        f_ox=OX.X,
+        current_ox=OX.X,
+        result=ResGame.Actual,
+        dimensions=body.dimensions,
+        mode=mode_api_to_db(body.mode),
+        type=TypeGame.Hotseat
+    )
+    db.add(g)
+    db.commit()
+    db.refresh(g)
 
+    return await _match_response(db, g.id)
 
 @app.post(
     '/matchmaking/join',
-    response_model=MatchmakingStatus,
+    #response_model=MatchmakingStatus,
     responses={'400': {'model': ErrorResponse}, '401': {'model': ErrorResponse}},
     tags=['Matchmaking'],
 )
 async def join_matchmaking(
     body: JoinMatchmakingRequest,
-) -> Union[MatchmakingStatus, ErrorResponse]:
+):
     """
     Join matchmaking queue
     """
@@ -475,11 +786,10 @@ async def leave_matchmaking() -> Optional[ErrorResponse]:
 
 @app.get(
     '/matchmaking/status',
-    response_model=MatchmakingStatus,
-    responses={'401': {'model': ErrorResponse}},
+    #response_model=MatchmakingStatus,
     tags=['Matchmaking'],
 )
-async def get_matchmaking_status() -> Union[MatchmakingStatus, ErrorResponse]:
+async def get_matchmaking_status():
     """
     Get matchmaking search status
     """
