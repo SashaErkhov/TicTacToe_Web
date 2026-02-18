@@ -60,7 +60,7 @@ function New() {
                 <button
                     className="text-white text-2xl w-full h-[60px] rounded-md bg-[#9F2D20] hover:bg-[#47140e] flex items-center justify-center"
                     onClick={() => {
-                        navigate("/match/hotseat");
+                        navigate("/match/hotseat/setup");
                     }}
                 >
                     Хотсит

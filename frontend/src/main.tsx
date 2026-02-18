@@ -13,6 +13,7 @@ import Match from "./pages/Match.tsx"; // Online game
 import MatchHotseat from "./pages/MatchHotseat.tsx";
 import {AuthProvider} from "./AuthContext.tsx";
 import ProtectedRoute from "./ProtectedRoute.tsx";
+import HotseatSetup from "./pages/HotseatSetup.tsx";
 
 createRoot(document.getElementById("root")!).render(
     <StrictMode>
@@ -28,21 +29,31 @@ createRoot(document.getElementById("root")!).render(
                             <New />
                         </ProtectedRoute>
                     } />
+
                     <Route path="/profile" element={
                         <ProtectedRoute>
                             <Profile />
                         </ProtectedRoute>
                     } />
+
                     <Route path="/leaders" element={
                         <ProtectedRoute>
                             <Leaders />
                         </ProtectedRoute>
                     } />
+
+                    <Route path="/match/hotseat/setup" element={
+                        <ProtectedRoute>
+                            <HotseatSetup/>
+                        </ProtectedRoute>
+                    } />
+
                     <Route path="/match/hotseat" element={
                         <ProtectedRoute>
                             <MatchHotseat />
                         </ProtectedRoute>
                     } />
+
                     <Route path="/match/:matchId" element={
                         <ProtectedRoute>
                             <Match />
