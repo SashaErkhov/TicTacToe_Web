@@ -5,8 +5,6 @@ from pydantic import conint
 
 from fastapi import HTTPException
 
-from .storage import users, next_user_id
-
 from fastapi import Depends, Response, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError
@@ -153,7 +151,10 @@ async def login_user(body: LoginRequest, response: Response, db: Session = Depen
 
 
 @app.post("/auth/refresh", tags=["Auth"])
-async def refresh_access(request: Request, response: Response) -> Union[AuthToken, ErrorResponse]:
+async def refresh_access(request: Request,
+                         response: Response,
+                         db: Session = Depends(get_db)) -> Union[AuthToken, ErrorResponse]:
+
     refresh = request.cookies.get(REFRESH_COOKIE_NAME)
     if not refresh:
         raise HTTPException(status_code=401, detail="Missing refresh token")
@@ -163,10 +164,13 @@ async def refresh_access(request: Request, response: Response) -> Union[AuthToke
     if not user_id_str:
         raise HTTPException(status_code=401, detail="Invalid refresh token")
 
+    # delete old refresh
     await r.delete(f"refresh:{refresh}")
 
     user_id = int(user_id_str)
-    user = users.get(user_id)
+
+    user = db.execute(select(Gamer).where(Gamer.id == user_id)).scalar_one_or_none()
+
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
 
@@ -200,7 +204,8 @@ async def logout_user(request: Request, response: Response):
 
 
 @app.post('/auth/register', status_code=201, tags=['Auth'])
-async def register_user(body: RegisterRequest, response: Response, db: Session = Depends(get_db)) -> Union[AuthToken, ErrorResponse]:
+async def register_user(body: RegisterRequest, response: Response,
+                        db: Session = Depends(get_db)) -> Union[AuthToken, ErrorResponse]:
     existing_user = db.execute(
         select(Gamer).where(Gamer.username == body.username)
     ).scalar_one_or_none()
